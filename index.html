@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#070c14">
+<meta name="description" content="RoadX Maps 3D — dark futuristic map, GPS location and driving routes.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>RoadX Maps 3D — Dark Edition</title>
+<link href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+:root{--bg:#070c14;--panel:rgba(8,15,27,.94);--cyan:#35e7ff;--green:#69ffb1;--muted:#a3b6cb;--border:#263950}
+*{box-sizing:border-box}
+html,body{height:100%;width:100%;margin:0;overflow:hidden;background:var(--bg);color:#f3f8ff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+button,input{font:inherit}
+.app{height:100dvh;display:flex;flex-direction:column}
+.topbar{height:57px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 15px;background:linear-gradient(100deg,#08111e,#12243a);border-bottom:1px solid var(--border);z-index:5}
+.brand{font-size:20px;font-weight:900;letter-spacing:1.2px}.brand span{color:var(--cyan)}
+.pill{font-size:10px;color:var(--green);border:1px solid #2c765d;padding:5px 8px;border-radius:30px;letter-spacing:.5px}
+.main{position:relative;flex:1;min-height:0}
+#map{position:absolute;inset:0;background:#101b2b}
+.panel{position:absolute;z-index:3;top:10px;left:10px;right:10px;padding:11px;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 12px 32px #0008;backdrop-filter:blur(12px)}
+.row{display:flex;gap:7px;margin-bottom:7px}
+input{min-width:0;width:100%;padding:12px 10px;color:white;background:#142236;border:1px solid #2b4058;border-radius:10px;outline:none}
+input:focus{border-color:var(--cyan)}input::placeholder{color:#93a8bf}
+button{padding:11px 12px;background:#17283d;color:#edfaff;border:1px solid #2b4158;border-radius:10px;font-weight:750;cursor:pointer}
+button.primary{background:var(--cyan);color:#04131a;border-color:var(--cyan)}
+button:disabled{opacity:.55}
+.iconbtn{min-width:44px;font-size:19px;padding:8px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+#message{font-size:12px;color:var(--muted);line-height:1.4;padding:8px 2px 0;min-height:25px}
+#routeInfo{display:none;margin-top:8px;padding:10px;background:#10243a;border:1px solid #27465f;border-radius:11px}
+.stats{display:flex;gap:22px}.stat strong{display:block;font-size:19px;color:var(--green)}.stat small{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+#nextStep{font-size:12px;line-height:1.45;color:#dcecff;margin:8px 0}
+.toggleRow{display:flex;gap:7px;margin-top:8px}.toggleRow button{flex:1;font-size:12px}
+.fabstack{position:absolute;z-index:2;right:11px;bottom:22px;display:flex;flex-direction:column;gap:8px}
+.fab{width:46px;height:46px;border-radius:14px;background:#0d1a2b;border:1px solid #35516d;font-size:19px;box-shadow:0 4px 14px #0008}
+.mapnote{position:absolute;z-index:2;left:10px;bottom:10px;max-width:70%;padding:6px 8px;border-radius:8px;background:#07101dcc;border:1px solid #263950;color:#b5c9dc;font-size:9px}
+.mode{position:absolute;z-index:2;right:10px;top:10px;background:#07101ddd;color:var(--cyan);border:1px solid #29475d;border-radius:8px;padding:6px 8px;font-size:10px;pointer-events:none}
+.maplibregl-ctrl-group{background:#101d2e!important;border:1px solid #344c65!important}
+.maplibregl-ctrl-group button{background-color:#101d2e!important}
+.maplibregl-ctrl button .maplibregl-ctrl-icon{filter:invert(1)}
+.maplibregl-ctrl-attrib{font-size:9px!important;background:#07101ccc!important;color:#b4c8dc!important}
+.maplibregl-ctrl-attrib a{color:var(--cyan)!important}
+@media(min-width:760px){.panel{width:380px;right:auto;top:14px;left:14px}.mode{right:14px;top:14px}.fabstack{right:14px;bottom:28px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <div class="brand">ROAD<span>X</span> MAPS <span style="font-size:11px;letter-spacing:1px">3D</span></div>
+  <div style="display:flex;align-items:center;gap:7px"><button id="installBtn" style="display:none;padding:7px 9px;font-size:11px">＋ Install</button><div class="pill" id="gpsStatus">● GPS OFF</div></div>
+</header>
+<main class="main">
+  <div id="map" aria-label="Interactive 3D map"></div>
+  <div class="mode" id="modeLabel">3D VIEW • TILT ON</div>
+  <section class="panel">
+    <div class="row">
+      <input id="start" placeholder="Start: use current GPS" aria-label="Starting point">
+      <button class="iconbtn" id="gpsBtn" title="Use GPS">⌖</button>
+    </div>
+    <div class="row">
+      <input id="destination" placeholder="Where do you want to go?" aria-label="Destination">
+      <button class="iconbtn" id="searchBtn" title="Search destination">⌕</button>
+    </div>
+    <div class="actions">
+      <button class="primary" id="routeBtn">➤ Find route</button>
+      <button id="clearBtn">✕ Clear route</button>
+    </div>
+    <div id="message" role="status">3D map loading… Search for a destination or use GPS.</div>
+    <div id="routeInfo">
+      <div class="stats">
+        <div class="stat"><strong id="distance">—</strong><small>Distance</small></div>
+        <div class="stat"><strong id="duration">—</strong><small>Est. drive</small></div>
+      </div>
+      <div id="nextStep">Route ready. Follow road signs.</div>
+      <div class="actions">
+        <button id="voiceBtn">🔊 Voice: off</button>
+        <button class="primary" id="navBtn">▶ Start guidance</button>
+      </div>
+    </div>
+    <div class="toggleRow">
+      <button id="tiltBtn">▱ 3D tilt: on</button>
+      <button id="recenterBtn">◎ Recenter route</button>
+    </div>
+  </section>
+  <div class="fabstack">
+    <button class="fab" id="locateBtn" title="Locate me">⌖</button>
+    <button class="fab" id="pitchBtn" title="Toggle 3D view">🏙️</button>
+    <button class="fab" id="zoomIn" title="Zoom in">＋</button>
+    <button class="fab" id="zoomOut" title="Zoom out">−</button>
+  </div>
+  <div class="mapnote">ROADX 3D • Building coverage varies by area • Drive safely</div>
+</main>
+</div>
+<script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const setMessage = msg => $('message').textContent = msg;
+  const escapeHtml = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const map = new maplibregl.Map({
+    container:'map',
+    style:'https://tiles.openfreemap.org/styles/dark',
+    center:[101.445,3.044],
+    zoom:14,
+    pitch:58,
+    bearing:-18,
+    maxPitch:75,
+    attributionControl:true
+  });
+  map.addControl(new maplibregl.NavigationControl({showCompass:true,visualizePitch:true}),'bottom-right');
+  map.addControl(new maplibregl.ScaleControl({maxWidth:100,unit:'metric'}),'bottom-left');
+
+  let currentPosition=null, gpsMarker=null, routeLayerId='roadx-route', routeSourceId='roadx-route-source';
+  let startMarker=null, endMarker=null, routeData=null, navActive=false, voiceOn=false, stepIndex=0, watchId=null, lastSpoken=-1, tiltOn=true;
+  let styleReady=false;
+
+  function setGps(on){
+    $('gpsStatus').textContent=on?'● GPS READY':'● GPS OFF';
+    $('gpsStatus').style.color=on?'#69ffb1':'#ffcc70';
+    $('gpsStatus').style.borderColor=on?'#2c765d':'#87632a';
+  }
+  function fmtDist(m){return m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m'}
+  function fmtTime(s){const m=Math.round(s/60);return m<60?m+' min':Math.floor(m/60)+' h '+m%60+' min'}
+
+  map.on('load',()=>{
+    styleReady=true;
+    add3DBuildings();
+    setMessage('3D map ready. Search a destination or tap ⌖ for GPS.');
+  });
+  map.on('error',e=>{
+    if(!styleReady) setMessage('Map style failed to load. Check internet and reload this page.');
+  });
+
+  function add3DBuildings(){
+    const style=map.getStyle();
+    if(!style || !style.layers) return;
+    if(map.getLayer('roadx-3d-buildings')) return;
+    const candidates=style.layers.filter(l=>
+      l.type==='fill' &&
+      (l['source-layer']==='building' || /building/i.test(l.id)) &&
+      l.source && map.getSource(l.source) && map.getSource(l.source).type==='vector'
+    );
+    if(!candidates.length){
+      setMessage('Map loaded. This style has limited building extrusion support in this area.');
+      return;
+    }
+    const sourceLayer=candidates[0]['source-layer'];
+    const source=candidates[0].source;
+    let beforeId;
+    const firstSymbol=style.layers.find(l=>l.type==='symbol');
+    if(firstSymbol) beforeId=firstSymbol.id;
+    try{
+      map.addLayer({
+        id:'roadx-3d-buildings',
+        type:'fill-extrusion',
+        source,
+        'source-layer':sourceLayer,
+        minzoom:13,
+        filter:['!=',['get','hide_3d'],true],
+        paint:{
+          'fill-extrusion-color':['interpolate',['linear'],['coalesce',['get','render_height'],['get','height'],10],
+            0,'#172c43',25,'#1d4563',80,'#28617b',180,'#34839a'],
+          'fill-extrusion-height':['interpolate',['linear'],['zoom'],13,0.01,15,['coalesce',['get','render_height'],['get','height'],10]],
+          'fill-extrusion-base':['coalesce',['get','render_min_height'],['get','min_height'],0],
+          'fill-extrusion-opacity':0.88,
+          'fill-extrusion-vertical-gradient':true
+        }
+      },beforeId);
+    }catch(err){console.warn('Could not add 3D buildings:',err);}
+  }
+
+  async function geocode(query){
+    const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=my&q='+encodeURIComponent(query);
+    const res=await fetch(url,{headers:{'Accept-Language':'en'}});
+    if(!res.ok) throw new Error('Place search is temporarily unavailable.');
+    const data=await res.json();
+    if(!data.length) throw new Error('Place not found. Try a more specific name.');
+    return {lat:Number(data[0].lat),lon:Number(data[0].lon),name:data[0].display_name};
+  }
+  function addPointMarker(p,label,color){
+    const el=document.createElement('div');
+    el.style.cssText=`width:17px;height:17px;border-radius:50%;background:${color};border:3px solid #f3fbff;box-shadow:0 0 15px ${color}`;
+    return new maplibregl.Marker({element:el}).setLngLat([p.lon,p.lat]).setPopup(new maplibregl.Popup({offset:18}).setHTML('<b>'+escapeHtml(label)+'</b>')).addTo(map);
+  }
+  function getStart(){
+    const text=$('start').value.trim();
+    if(!text || /current gps|current location|my location/i.test(text)){
+      if(currentPosition) return Promise.resolve({lat:currentPosition.lat,lon:currentPosition.lon,name:'Your GPS location'});
+      throw new Error('Tap the GPS button first, or type a starting place.');
+    }
+    return geocode(text);
+  }
+  function removeRoute(){
+    if(map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
+    if(map.getSource(routeSourceId)) map.removeSource(routeSourceId);
+    if(startMarker){startMarker.remove();startMarker=null}
+    if(endMarker){endMarker.remove();endMarker=null}
+    routeData=null;navActive=false;stepIndex=0;lastSpoken=-1;
+    $('routeInfo').style.display='none';
+    $('navBtn').textContent='▶ Start guidance';
+    if('speechSynthesis' in window) speechSynthesis.cancel();
+  }
+  async function findRoute(){
+    if(!styleReady){setMessage('Map is still loading. Please wait a moment.');return}
+    const destText=$('destination').value.trim();
+    if(!destText){setMessage('Enter a destination first.');$('destination').focus();return}
+    $('routeBtn').disabled=true;setMessage('Searching places and calculating route…');
+    try{
+      const [a,b]=await Promise.all([getStart(),geocode(destText)]);
+      const url=`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=true`;
+      const res=await fetch(url);
+      if(!res.ok) throw new Error('Routing service unavailable. Try again later.');
+      const json=await res.json();
+      if(json.code!=='Ok'||!json.routes?.length) throw new Error('No driving route found for those locations.');
+      removeRoute();
+      routeData=json.routes[0];
+      startMarker=addPointMarker(a,'START · '+(a.name||'Start'),'#69ffb1');
+      endMarker=addPointMarker(b,'DESTINATION · '+(b.name||destText),'#35e7ff');
+      map.addSource(routeSourceId,{type:'geojson',data:{type:'Feature',properties:{},geometry:routeData.geometry}});
+      map.addLayer({id:routeLayerId,type:'line',source:routeSourceId,layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':'#35e7ff','line-width':['interpolate',['linear'],['zoom'],8,4,16,7],'line-opacity':0.95,'line-blur':0.3}});
+      $('distance').textContent=fmtDist(routeData.distance);
+      $('duration').textContent=fmtTime(routeData.duration);
+      $('routeInfo').style.display='block';stepIndex=0;updateStep();
+      map.fitBounds([[Math.min(a.lon,b.lon),Math.min(a.lat,b.lat)],[Math.max(a.lon,b.lon),Math.max(a.lat,b.lat)]],{padding:{top:250,bottom:90,left:35,right:35},maxZoom:16,duration:900});
+      setMessage('Route ready. Time estimate excludes live traffic.');
+    }catch(e){setMessage(e.message||'Could not calculate route. Check your connection.')}
+    finally{$('routeBtn').disabled=false}
+  }
+  function steps(){return (routeData?.legs||[]).flatMap(l=>l.steps||[]).filter(s=>s.distance>1)}
+  function instruction(s){
+    if(!s) return 'Follow the highlighted route.';
+    const type=s.maneuver?.type||'continue', mod=s.maneuver?.modifier||'';
+    const street=s.name?' onto '+s.name:'';
+    const phrase={
+      depart:'Start driving',turn:'Turn '+mod,continue:'Continue '+(mod||'straight'),
+      merge:'Merge '+mod,'on ramp':'Take the ramp '+mod,'off ramp':'Take the exit '+mod,
+      fork:'Keep '+mod+' at the fork',roundabout:'Enter the roundabout',
+      rotary:'Enter the roundabout',arrive:'You have arrived at your destination',
+      end:'Route complete'
+    };
+    return (phrase[type]||'Continue '+mod)+street+'.';
+  }
+  function updateStep(){
+    const all=steps();if(!all.length){$('nextStep').textContent='Follow the highlighted route and road signs.';return}
+    stepIndex=Math.min(stepIndex,all.length-1);
+    $('nextStep').textContent='Next: '+instruction(all[stepIndex])+' ('+fmtDist(all[stepIndex].distance)+')';
+  }
+  function speak(text){
+    if(!voiceOn||!('speechSynthesis'in window))return;
+    speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='en-MY';u.rate=1;speechSynthesis.speak(u);
+  }
+  function distMeters(a,b,c,d){
+    const r=Math.PI/180,dl=(c-a)*r,dn=(d-b)*r;
+    const x=Math.sin(dl/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(dn/2)**2;
+    return 6371000*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+  }
+  function checkNavigation(){
+    if(!navActive||!currentPosition||!routeData)return;
+    const all=steps();let closest=-1,best=Infinity;
+    for(let i=Math.max(0,stepIndex-1);i<Math.min(all.length,stepIndex+6);i++){
+      const loc=all[i].maneuver?.location;if(!loc)continue;
+      const d=distMeters(currentPosition.lat,currentPosition.lon,loc[1],loc[0]);
+      if(d<best){best=d;closest=i}
+    }
+    if(closest>=stepIndex&&best<75){
+      stepIndex=closest;updateStep();
+      if(lastSpoken!==stepIndex){speak(instruction(all[stepIndex]));lastSpoken=stepIndex}
+    }
+  }
+  function enableGps(){
+    if(!window.isSecureContext){setMessage('Location needs a secure HTTPS website. Upload RoadX to an HTTPS host, then open it in Chrome.');return}
+    if(!navigator.geolocation){setMessage('Location is not supported by this browser. Open the HTTPS site in Chrome and try again.');return}
+    setMessage('Requesting location permission…');
+    navigator.geolocation.getCurrentPosition(pos=>{
+      currentPosition={lat:pos.coords.latitude,lon:pos.coords.longitude};
+      setGps(true);
+      if(!gpsMarker){
+        const el=document.createElement('div');
+        el.style.cssText='width:19px;height:19px;border-radius:50%;background:#69ffb1;border:4px solid #f5ffff;box-shadow:0 0 0 8px #69ffb133,0 0 20px #69ffb1';
+        gpsMarker=new maplibregl.Marker({element:el}).setLngLat([currentPosition.lon,currentPosition.lat]).setPopup(new maplibregl.Popup().setText('Your GPS location')).addTo(map);
+      }else gpsMarker.setLngLat([currentPosition.lon,currentPosition.lat]);
+      map.flyTo({center:[currentPosition.lon,currentPosition.lat],zoom:16,pitch:tiltOn?58:0,duration:900});
+      if(!watchId)watchId=navigator.geolocation.watchPosition(p=>{
+        currentPosition={lat:p.coords.latitude,lon:p.coords.longitude};
+        setGps(true);if(gpsMarker)gpsMarker.setLngLat([currentPosition.lon,currentPosition.lat]);
+        checkNavigation();
+      },()=>setGps(false),{enableHighAccuracy:true,maximumAge:3000,timeout:15000});
+      setMessage('GPS located. Enter a destination and find a route.');
+    },err=>{
+      setGps(false);
+      setMessage(err.code===1?'Location permission denied. Allow location in Chrome site settings.':err.code===3?'GPS timed out. Try again outdoors.':'Location unavailable. Try again or enter a start place.');
+    },{enableHighAccuracy:true,timeout:15000,maximumAge:5000});
+  }
+  function toggleTilt(){
+    tiltOn=!tiltOn;
+    map.easeTo({pitch:tiltOn?58:0,bearing:tiltOn?-18:0,duration:650});
+    $('tiltBtn').textContent='▱ 3D tilt: '+(tiltOn?'on':'off');
+    $('modeLabel').textContent=tiltOn?'3D VIEW • TILT ON':'2D VIEW • TILT OFF';
+  }
+  $('routeBtn').addEventListener('click',findRoute);
+  $('destination').addEventListener('keydown',e=>{if(e.key==='Enter')findRoute()});
+  $('start').addEventListener('keydown',e=>{if(e.key==='Enter')findRoute()});
+  $('searchBtn').addEventListener('click',async()=>{
+    const q=$('destination').value.trim();if(!q){setMessage('Type a place to search.');return}
+    setMessage('Searching map…');
+    try{const p=await geocode(q);map.flyTo({center:[p.lon,p.lat],zoom:16,pitch:tiltOn?58:0});setMessage('Found: '+p.name)}
+    catch(e){setMessage(e.message)}
+  });
+  $('gpsBtn').addEventListener('click',enableGps);
+  $('locateBtn').addEventListener('click',enableGps);
+  $('clearBtn').addEventListener('click',()=>{removeRoute();setMessage('Route cleared. Search for a destination.')});
+  $('tiltBtn').addEventListener('click',toggleTilt);
+  $('pitchBtn').addEventListener('click',toggleTilt);
+  $('zoomIn').addEventListener('click',()=>map.zoomIn());
+  $('zoomOut').addEventListener('click',()=>map.zoomOut());
+  $('recenterBtn').addEventListener('click',()=>{
+    if(routeData)map.fitBounds(routeData.geometry.coordinates.reduce((b,c)=>[[Math.min(b[0][0],c[0]),Math.min(b[0][1],c[1])],[Math.max(b[1][0],c[0]),Math.max(b[1][1],c[1])]],[[Infinity,Infinity],[-Infinity,-Infinity]]),{padding:{top:250,bottom:90,left:35,right:35},maxZoom:16,duration:800});
+    else if(currentPosition)map.flyTo({center:[currentPosition.lon,currentPosition.lat],zoom:16,pitch:tiltOn?58:0});
+  });
+  $('voiceBtn').addEventListener('click',()=>{
+    voiceOn=!voiceOn;$('voiceBtn').textContent=voiceOn?'🔊 Voice: on':'🔊 Voice: off';
+    if(!voiceOn&&'speechSynthesis'in window)speechSynthesis.cancel();
+    if(voiceOn)speak('Voice guidance enabled.');
+  });
+  $('navBtn').addEventListener('click',()=>{
+    if(!routeData){setMessage('Find a route first.');return}
+    if(!currentPosition){setMessage('Enable GPS before starting guidance.');return}
+    navActive=!navActive;$('navBtn').textContent=navActive?'Ⅱ Pause guidance':'▶ Start guidance';
+    setMessage(navActive?'Guidance started. Use a safe phone mount and follow road signs.':'Guidance paused.');
+    if(navActive){updateStep();speak(instruction(steps()[stepIndex]))}
+    else if('speechSynthesis'in window)speechSynthesis.cancel();
+  });
+  setGps(false);
+  // Installable Android PWA: install prompt is shown only when the browser allows it.
+  let installPrompt=null;
+  const installBtn=$('installBtn');
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;installBtn.style.display='block'});
+  installBtn.addEventListener('click',async()=>{if(!installPrompt){setMessage('In Chrome, open ⋮ menu and choose Add to Home screen or Install app.');return}installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;installBtn.style.display='none'});
+  window.addEventListener('appinstalled',()=>{installBtn.style.display='none';setMessage('RoadX Maps installed. Open it from your home screen.')});
+  if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  if(!window.isSecureContext) setMessage('Tip: GPS works reliably on an HTTPS-hosted website. Upload this project to a secure host.');
+})();
+</script>
+</body>
+</html>
