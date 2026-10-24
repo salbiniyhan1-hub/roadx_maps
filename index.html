@@ -1,118 +1,294 @@
-cd /mnt/user-data/outputs && cat > /tmp/patch12.py <<'EOF'
-import re
-p='/mnt/user-data/outputs/index.html'
-s=open(p,encoding='utf-8').read()
-def rep(old,new):
-    global s
-    assert s.count(old)==1,old[:70]
-    s=s.replace(old,new)
-def between(a,b,new):
-    global s
-    i=s.index(a);j=s.index(b,i);s=s[:i]+new+s[j:]
-# ---------- CSS
-rep('@media(min-width:760px)','''.avoid{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);padding:8px 2px 0}.avoid input{width:19px;height:19px;padding:0;accent-color:var(--cyan)}.panel.compact>.avoid{display:none}
-.limit{position:absolute;z-index:2;left:98px;bottom:58px;width:54px;height:54px;border-radius:50%;background:#fff;border:6px solid #e5484d;color:#111;font-weight:800;font-size:19px;display:none;align-items:center;justify-content:center;pointer-events:none}
-body.navmode .limit{bottom:112px}body.home .limit{bottom:150px}
-.sheet{position:fixed;inset:0;z-index:50;display:none;align-items:flex-end;justify-content:center;background:#0009;padding:10px}.sheet.on{display:flex}
-.sheetcard{width:100%;max-width:480px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:16px;display:grid;gap:10px;margin-bottom:max(10px,env(safe-area-inset-bottom))}
-.sheetcard h3{margin:0;font-size:19px}.sheetcard .hint{margin:0;font-size:12px;color:var(--muted)}
-.seg{display:flex;gap:8px}.seg button{flex:1}.seg button.on{background:var(--cyan);color:var(--ink);border-color:var(--cyan)}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.two input{font-size:13px}
-@media(min-width:760px)''')
-# ---------- HTML
-rep('<div class="sug" id="sug"></div>','<label class="avoid"><input type="checkbox" id="avoidToll"> Avoid toll roads</label>\n    <div class="sug" id="sug"></div>')
-rep('<div class="speedo" id="speedo"','<div class="limit" id="limitSign" aria-label="Speed limit"></div>\n  <div class="speedo" id="speedo"')
-rep('</main>','''</main>
-<div class="sheet" id="carSheet"><div class="sheetcard">
-  <h3>Your vehicle</h3><p class="hint">Tell RoadX what you drive. This stays on this phone.</p>
-  <div class="seg"><button data-t="car" class="on">🚗 Car</button><button data-t="moto">🏍 Motorcycle</button></div>
-  <input id="carBrand" list="brands" placeholder="Brand (e.g. Perodua)" autocomplete="off">
-  <datalist id="brands"><option>Perodua</option><option>Proton</option><option>Toyota</option><option>Honda</option><option>Nissan</option><option>Mazda</option><option>Hyundai</option><option>Kia</option><option>Mitsubishi</option><option>Suzuki</option><option>Isuzu</option><option>Ford</option><option>Volkswagen</option><option>BMW</option><option>Mercedes-Benz</option><option>Audi</option><option>Volvo</option><option>Tesla</option><option>BYD</option><option>Chery</option><option>Yamaha</option><option>Modenas</option><option>Kawasaki</option><option>SYM</option><option>Benelli</option></datalist>
-  <input id="carModel" placeholder="Model (e.g. Myvi)" autocomplete="off">
-  <div class="two"><input id="carFuel" type="number" step="0.1" inputmode="decimal" placeholder="Fuel L/100 km (optional)"><input id="carPrice" type="number" step="0.01" inputmode="decimal" placeholder="Petrol RM/litre (optional)"></div>
-  <div class="actions"><button id="carSkip">Skip</button><button class="primary" id="carSave">Save</button></div>
-</div></div>''')
-# ---------- JS: routing with avoid-tolls + speed-limit data
-rep("let walkSec=null,walkM=null,tripA=null;","let walkSec=null,walkM=null,tripA=null,avoidToll=false,noLimits=false;")
-between("const url=`https://router.project-osrm.org","const wasNav=navActive;","""const baseUrl=`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=true&alternatives=3`;
-      const ex=avoidToll?'&exclude=toll':'',tries=[];
-      if(!noLimits)tries.push(ex+'&annotations=maxspeed');
-      tries.push(ex);
-      if(avoidToll)tries.push('');
-      let json=null,used='',lastOk=true;
-      for(const extra of tries){
-        const res=await fetch(baseUrl+extra);lastOk=res.ok;
-        if(!res.ok)continue;
-        const j=await res.json();
-        if(j.code==='Ok'&&j.routes&&j.routes.length){json=j;used=extra;break}
-      }
-      if(!json)throw new Error(lastOk?'No driving route found for those locations.':'Routing service unavailable. Try again later.');
-      if(!used.includes('annotations'))noLimits=true;
-      const avoidFailed=avoidToll&&!used.includes('exclude');
-      """)
-rep("+'. Time excludes live traffic.');","+'. Time excludes live traffic.'+(avoidFailed?' No toll-free route found.':''));")
-# nearest segment + speed limit
-between("function offRoute(){","function checkNavigation(){","""function nearest(){
-    const pts=routeData.geometry.coordinates,k=111320,c=Math.cos(currentPosition.lat*Math.PI/180),px=currentPosition.lon*k*c,py=currentPosition.lat*k;let best=Infinity,bi=0;
-    for(let i=0;i<pts.length-1;i++){
-      const ax=pts[i][0]*k*c,ay=pts[i][1]*k,dx=pts[i+1][0]*k*c-ax,dy=pts[i+1][1]*k-ay,L=dx*dx+dy*dy;
-      let t=L?((px-ax)*dx+(py-ay)*dy)/L:0;t=Math.max(0,Math.min(1,t));
-      const h=Math.hypot(px-ax-t*dx,py-ay-t*dy);if(h<best){best=h;bi=i}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RoadX Maps</title>
+
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  background:#080d16;
+  color:white;
+  font-family:Arial,sans-serif;
+}
+header {
+  padding:16px;
+  background:#101a29;
+  border-bottom:1px solid #26384d;
+}
+h2 { margin:0; color:#35e7ff; }
+small { color:#a9bacd; }
+#searchBox { padding:12px; position:relative; }
+input, select, button {
+  width:100%;
+  padding:13px;
+  border-radius:10px;
+  border:1px solid #31465d;
+  background:#142033;
+  color:white;
+  margin-bottom:8px;
+  font-size:15px;
+}
+button {
+  background:#00bde8;
+  color:#06111c;
+  font-weight:bold;
+  border:none;
+}
+#suggestions {
+  background:#142033;
+  border-radius:10px;
+  overflow:hidden;
+}
+.suggestion {
+  padding:12px;
+  border-bottom:1px solid #31465d;
+  cursor:pointer;
+}
+#map {
+  height:53vh;
+  width:100%;
+  background:#0a1422;
+}
+#panel { padding:12px; }
+.carMarker {
+  font-size:32px;
+  filter:drop-shadow(0 0 5px #00d9ff);
+  text-align:center;
+}
+.status { color:#35e7ff; font-size:13px; }
+</style>
+</head>
+
+<body>
+<header>
+  <h2>🚘 RoadX Maps</h2>
+  <small>Explore your world • Find your route</small>
+</header>
+
+<div id="searchBox">
+  <input id="destination"
+    placeholder="🔎 Search destination or address"
+    autocomplete="off">
+  <div id="suggestions"></div>
+
+  <select id="car">
+    <option value="🚙">Toyota Alphard 🚙</option>
+    <option value="🏎️">Sports Car 🏎️</option>
+    <option value="🚗">Hatchback 🚗</option>
+    <option value="🏍️">Motorcycle 🏍️</option>
+  </select>
+
+  <button onclick="useGPS()">📍 Use My Location</button>
+  <button onclick="buildRoute()">🗺️ Find Route</button>
+</div>
+
+<div id="map"></div>
+
+<div id="panel">
+  <div class="status" id="status">Ready to navigate</div>
+  <p id="details">Search for a destination to begin.</p>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+const map = L.map('map').setView([3.139,101.6869],13);
+
+L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  {
+    attribution:'&copy; OpenStreetMap contributors &copy; CARTO',
+    maxZoom:20
+  }
+).addTo(map);
+
+let current = null;
+let destinationPoint = null;
+let carMarker = null;
+let routeLine = null;
+let destinationMarker = null;
+let chosenPlace = null;
+let searchTimer = null;
+
+function setStatus(text) {
+  document.getElementById('status').textContent = text;
+}
+
+function showCar(latlng) {
+  const emoji = document.getElementById('car').value;
+  const icon = L.divIcon({
+    className:'',
+    html:`<div class="carMarker">${emoji}</div>`,
+    iconSize:[40,40],
+    iconAnchor:[20,20]
+  });
+
+  if (!carMarker) {
+    carMarker = L.marker(latlng,{icon}).addTo(map);
+  } else {
+    carMarker.setIcon(icon);
+    carMarker.setLatLng(latlng);
+  }
+}
+
+document.getElementById('car').addEventListener('change',()=>{
+  if (current) showCar(current);
+});
+
+async function useGPS() {
+  if (!navigator.geolocation) {
+    setStatus('GPS is not supported by this browser.');
+    return;
+  }
+
+  setStatus('Finding your location…');
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      current = [pos.coords.latitude,pos.coords.longitude];
+      showCar(current);
+      map.setView(current,16);
+      setStatus('GPS location found');
+      document.getElementById('details').textContent =
+        'Your current location is ready.';
+    },
+    err => setStatus(
+      'Location unavailable. Allow location permission and use HTTPS.'
+    ),
+    {enableHighAccuracy:true,timeout:15000}
+  );
+}
+
+document.getElementById('destination').addEventListener('input',e=>{
+  clearTimeout(searchTimer);
+  const q = e.target.value.trim();
+
+  if (q.length < 3) {
+    document.getElementById('suggestions').innerHTML='';
+    return;
+  }
+
+  searchTimer = setTimeout(()=>searchPlaces(q),500);
+});
+
+async function searchPlaces(q) {
+  const box = document.getElementById('suggestions');
+  box.innerHTML='<div class="suggestion">Searching…</div>';
+
+  try {
+    const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q='
+      +encodeURIComponent(q);
+
+    const response=await fetch(url);
+    const places=await response.json();
+
+    box.innerHTML='';
+
+    if (!places.length) {
+      box.innerHTML='<div class="suggestion">No places found.</div>';
+      return;
     }
-    return{d:best,i:bi};
+
+    places.forEach(place=>{
+      const item=document.createElement('div');
+      item.className='suggestion';
+      item.textContent=place.display_name;
+      item.onclick=()=>{
+        chosenPlace={
+          lat:Number(place.lat),
+          lon:Number(place.lon),
+          name:place.display_name
+        };
+        document.getElementById('destination').value=place.display_name;
+        box.innerHTML='';
+        destinationPoint=[chosenPlace.lat,chosenPlace.lon];
+
+        if (destinationMarker) map.removeLayer(destinationMarker);
+        destinationMarker=L.marker(destinationPoint)
+          .addTo(map).bindPopup(chosenPlace.name).openPopup();
+
+        map.setView(destinationPoint,14);
+        setStatus('Destination selected');
+        document.getElementById('details').textContent =
+          'Destination selected. Tap Find Route.';
+      };
+      box.appendChild(item);
+    });
+  } catch (error) {
+    box.innerHTML=
+      '<div class="suggestion">Search failed. Check your internet.</div>';
   }
-  function offRoute(){return nearest().d}
-  let lastWarn=0;
-  function updateLimit(kmh){
-    const el=$('limitSign');el.style.display='none';
-    if(!navActive||!currentPosition||!routeData)return;
-    const lg=routeData.legs&&routeData.legs[0],ms=lg&&lg.annotation&&lg.annotation.maxspeed;
-    if(!ms||!ms.length)return;
-    const m=ms[Math.min(nearest().i,ms.length-1)];
-    if(!m||!m.speed)return;
-    const lim=m.unit==='mph'?Math.round(m.speed*1.609):m.speed;
-    el.textContent=lim;el.style.display='flex';
-    if(kmh>lim+5){$('speedo').style.borderColor='#e5484d';if(Date.now()-lastWarn>30000){lastWarn=Date.now();speak('Slow down. Speed limit '+lim)}}
+}
+
+async function buildRoute() {
+  if (!current) {
+    setStatus('First tap Use My Location.');
+    return;
   }
-  """)
-rep("setSpeedo(kmh);","setSpeedo(kmh);updateLimit(kmh);")
-# ---------- vehicle profile
-rep("const picked={};","""const BIKE='<svg viewBox="0 0 40 64" width="26" height="48" xmlns="http://www.w3.org/2000/svg"><rect x="15" y="6" width="10" height="52" rx="5" style="fill:var(--car)" stroke="#fff" stroke-width="3"/><rect x="5" y="14" width="30" height="5" rx="2.5" fill="#fff"/><rect x="16.5" y="24" width="7" height="14" rx="3" fill="#07101d"/><circle cx="20" cy="9" r="3" fill="#fff6b0"/></svg>';
-  const picked={};""")
-rep("el.innerHTML=CAR;","el.innerHTML=vehicleSvg();")
-rep("function renderDock(){","""const CK='roadx_car',CSK='roadx_car_skip';let carType='car';
-  function car(){try{return JSON.parse(localStorage.getItem(CK))||null}catch(e){return null}}
-  function carName(c){return [c.brand,c.model].filter(Boolean).join(' ')}
-  function vehicleSvg(){const c=car();return c&&c.type==='moto'?BIKE:CAR}
-  function segSync(){document.querySelectorAll('#carSheet .seg button').forEach(b=>b.classList.toggle('on',b.dataset.t===carType))}
-  function openCar(){const c=car()||{};carType=c.type||'car';$('carBrand').value=c.brand||'';$('carModel').value=c.model||'';$('carFuel').value=c.lper||'';$('carPrice').value=c.price||'';segSync();$('carSheet').classList.add('on')}
-  document.querySelectorAll('#carSheet .seg button').forEach(b=>b.addEventListener('click',()=>{carType=b.dataset.t;segSync()}));
-  $('carSkip').addEventListener('click',()=>{try{localStorage.setItem(CSK,'1')}catch(e){}$('carSheet').classList.remove('on')});
-  $('carSave').addEventListener('click',()=>{
-    const c={type:carType,brand:$('carBrand').value.trim(),model:$('carModel').value.trim(),lper:parseFloat($('carFuel').value)||null,price:parseFloat($('carPrice').value)||null};
-    try{localStorage.setItem(CK,JSON.stringify(c))}catch(e){}
-    $('carSheet').classList.remove('on');
-    if(gpsMarker)gpsMarker.getElement().innerHTML=vehicleSvg();
-    renderDock();renderTrip();
+
+  if (!destinationPoint) {
+    setStatus('Please search and select a destination.');
+    return;
+  }
+
+  setStatus('Calculating route…');
+
+  try {
+    const coords=
+      `${current[1]},${current[0]};${destinationPoint[1]},${destinationPoint[0]}`;
+
+    const url=`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`;
+
+    const response=await fetch(url);
+    const data=await response.json();
+
+    if (!data.routes || !data.routes.length) {
+      setStatus('No route found.');
+      return;
+    }
+
+    const route=data.routes[0];
+
+    if (routeLine) map.removeLayer(routeLine);
+
+    routeLine=L.geoJSON(route.geometry,{
+      style:{color:'#00d9ff',weight:6,opacity:0.9}
+    }).addTo(map);
+
+    map.fitBounds(routeLine.getBounds(),{padding:[30,30]});
+    showCar(current);
+
+    const km=(route.distance/1000).toFixed(1);
+    const mins=Math.round(route.duration/60);
+
+    document.getElementById('details').textContent=
+      `To: ${chosenPlace.name} • ${km} km • About ${mins} minutes`;
+
+    setStatus('Route ready');
+  } catch (error) {
+    setStatus('Could not calculate route. Check your internet.');
+  }
+}
+
+// Optional GPS tracking while the page stays open.
+function startTracking() {
+  if (!navigator.geolocation) return;
+
+  navigator.geolocation.watchPosition(pos=>{
+    current=[pos.coords.latitude,pos.coords.longitude];
+    showCar(current);
+  },()=>{},{
+    enableHighAccuracy:true,
+    maximumAge:3000
   });
-  $('avoidToll').addEventListener('change',()=>{
-    avoidToll=$('avoidToll').checked;try{localStorage.setItem('roadx_avoid',avoidToll?'1':'0')}catch(e){}
-    if(routeData&&$('destination').value.trim())findRoute();
-  });
-  function renderDock(){""")
-rep("$('chips2').innerHTML='<button class=\"sc\" data-k=\"home\">","const cv=car();\n    $('chips2').innerHTML='<button class=\"sc\" data-car=\"1\">'+(cv&&cv.type==='moto'?'🏍 ':'🚗 ')+escapeHtml(cv&&carName(cv)?carName(cv):'Add your car')+'</button><button class=\"sc\" data-k=\"home\">")
-rep("if(b.dataset.k)goPlace(b.dataset.k);","if(b.dataset.car)openCar();else if(b.dataset.k)goPlace(b.dataset.k);")
-rep("setGps(false);fillRecents();renderDock();refreshTheme();","""try{avoidToll=localStorage.getItem('roadx_avoid')==='1'}catch(e){}
-  $('avoidToll').checked=avoidToll;
-  setGps(false);fillRecents();renderDock();refreshTheme();
-  setTimeout(()=>{let sk=null;try{sk=localStorage.getItem(CSK)}catch(e){}if(!car()&&!sk)openCar()},700);""")
-# fuel row in trip options
-rep("'<div class=\"tr\"><span>💰 Toll</span>","(function(){const cv=car();if(!cv||!cv.lper||!cv.price)return'';const L=km/1000*cv.lper/100;return'<div class=\"tr\"><span>⛽ Fuel'+(carName(cv)?' · '+escapeHtml(carName(cv)):'')+'</span><span><b>about RM '+(L*cv.price).toFixed(2)+'</b><small>'+L.toFixed(1)+' L</small></span></div>'})()+\n      '<div class=\"tr\"><span>💰 Toll</span>")
-open(p,'w',encoding='utf-8').write(s)
-EOF
-python3 /tmp/patch12.py && python3 - <<'EOF'
-import re,subprocess
-s=open('/mnt/user-data/outputs/index.html',encoding='utf-8').read()
-open('/tmp/a.js','w').write(re.findall(r'<script>(.*?)</script>',s,re.S)[0])
-print(subprocess.run(['node','--check','/tmp/a.js'],capture_output=True,text=True))
-EOF
+}
+</script>
+</body>
+</html>
