@@ -1,16 +1,93 @@
-cd /mnt/user-data/outputs && cat > /tmp/patch12.py <<'EOF'
-import re
-p='/mnt/user-data/outputs/index.html'
-s=open(p,encoding='utf-8').read()
-def rep(old,new):
-    global s
-    assert s.count(old)==1,old[:70]
-    s=s.replace(old,new)
-def between(a,b,new):
-    global s
-    i=s.index(a);j=s.index(b,i);s=s[:i]+new+s[j:]
-# ---------- CSS
-rep('@media(min-width:760px)','''.avoid{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);padding:8px 2px 0}.avoid input{width:19px;height:19px;padding:0;accent-color:var(--cyan)}.panel.compact>.avoid{display:none}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#070c14">
+<meta name="description" content="RoadX Maps 3D — dark futuristic map, GPS location and driving routes.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>RoadX Maps 3D — Dark Edition</title>
+<link href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+
+:root{--bg:#070c14;--panel:rgba(8,15,27,.94);--cyan:#35e7ff;--green:#69ffb1;--muted:#a3b6cb;--border:#263950;--text:#f3f8ff;--sub:var(--sub);--card:var(--card);--cardA:var(--cardA);--card2:var(--card2);--field:#142236;--fieldb:#2b4058;--btn:#17283d;--btnb:#2b4158;--btntext:#edfaff;--line:var(--line);--ink:var(--ink);--turnbg:#0b3b4a;--turnb:#35e7ff77;--navtopbg:#0b3b4af2;--navbotbg:#08141ff2;--shadow:var(--shadow);--topbar:var(--topbar);--mapbg:#101b2b;--note:#07101ddd;--car:#35e7ff;--glow:#35e7ff;--good:#69ffb1;--goodb:var(--goodb);--warn:#ffcc70;--warnb:#87632a;--iconf:invert(1);color-scheme:dark}
+:root[data-theme="light"]{--bg:#eef2f6;--panel:rgba(255,255,255,.97);--cyan:#0b72e8;--green:#0f8a4f;--muted:#5c7185;--border:#d3dde8;--text:#10202f;--sub:#2a4157;--card:#ffffff;--cardA:#ffffffee;--card2:#f3f7fb;--field:#f1f5f9;--fieldb:#cbd6e2;--btn:#eef3f8;--btnb:#cbd6e2;--btntext:#13273a;--line:#e3eaf1;--ink:#ffffff;--turnbg:#e7f1ff;--turnb:#0b72e855;--navtopbg:#fffffff7;--navbotbg:#fffffff7;--shadow:#1b2d4222;--topbar:linear-gradient(100deg,#ffffff,#e9f0f8);--mapbg:#e8edf2;--note:#ffffffdd;--car:#0b72e8;--glow:#0b72e888;--good:#0f8a4f;--goodb:#8fd1ae;--warn:#b86e00;--warnb:#e3b86b;--iconf:none;color-scheme:light}
+*{box-sizing:border-box}
+html,body{height:100%;width:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+button,input{font:inherit}
+.app{height:100dvh;display:flex;flex-direction:column}
+.topbar{height:57px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 15px;background:var(--topbar);border-bottom:1px solid var(--border);z-index:5}
+.brand{font-size:20px;font-weight:900;letter-spacing:1.2px}.brand span{color:var(--cyan)}
+.pill{font-size:10px;color:var(--green);border:1px solid var(--goodb);padding:5px 8px;border-radius:30px;letter-spacing:.5px}
+.main{position:relative;flex:1;min-height:0}
+#map{position:absolute;inset:0;background:var(--mapbg)}
+.panel{position:absolute;z-index:3;top:10px;left:10px;right:10px;padding:11px;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 12px 32px var(--shadow);backdrop-filter:blur(12px)}
+.row{display:flex;gap:7px;margin-bottom:7px}
+input{min-width:0;width:100%;padding:12px 10px;color:var(--text);background:var(--field);border:1px solid var(--fieldb);border-radius:10px;outline:none}
+input:focus{border-color:var(--cyan)}input::placeholder{color:var(--muted)}
+button{padding:11px 12px;background:var(--btn);color:var(--btntext);border:1px solid var(--btnb);border-radius:10px;font-weight:750;cursor:pointer}
+button.primary{background:var(--cyan);color:var(--ink);border-color:var(--cyan)}
+button:disabled{opacity:.55}
+.iconbtn{min-width:44px;font-size:19px;padding:8px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+#message{font-size:12px;color:var(--muted);line-height:1.4;padding:8px 2px 0;min-height:25px}
+#routeInfo{display:none;margin-top:8px;padding:10px;background:var(--card2);border:1px solid var(--border);border-radius:11px}
+.stats{display:flex;gap:22px}.stat strong{display:block;font-size:19px;color:var(--green)}.stat small{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+#nextStep{font-size:12px;line-height:1.45;color:var(--sub);margin:8px 0}
+.toggleRow{display:flex;gap:7px;margin-top:8px}.toggleRow button{flex:1;font-size:12px}
+.fabstack{position:absolute;z-index:2;right:11px;bottom:22px;display:flex;flex-direction:column;gap:8px}
+.fab{width:46px;height:46px;border-radius:14px;background:var(--card);border:1px solid var(--border);font-size:19px;box-shadow:0 4px 14px var(--shadow)}
+.mapnote{position:absolute;z-index:2;left:10px;bottom:10px;max-width:70%;padding:6px 8px;border-radius:8px;background:var(--note);border:1px solid var(--border);color:var(--muted);font-size:9px}
+.mode{position:absolute;z-index:2;right:10px;top:10px;background:var(--note);color:var(--cyan);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:10px;pointer-events:none}
+.maplibregl-ctrl-group{background:var(--card)!important;border:1px solid var(--border)!important}
+.maplibregl-ctrl-group button{background-color:var(--card)!important}
+.maplibregl-ctrl button .maplibregl-ctrl-icon{filter:var(--iconf)}
+.maplibregl-ctrl-attrib{font-size:9px!important;background:var(--note)!important;color:var(--muted)!important}
+.maplibregl-ctrl-attrib a{color:var(--cyan)!important}
+.sug{position:absolute;left:11px;right:11px;z-index:10;display:none;max-height:240px;overflow:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 28px var(--shadow)}.sug button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;font-weight:600;padding:10px 12px}.sug small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:2px}
+.alts{display:flex;gap:6px;margin-top:8px}.alts button{flex:1;font-size:12px;padding:8px 6px}.alts button.on{background:var(--cyan);color:var(--ink);border-color:var(--cyan)}
+.handle{display:none;width:100%;margin-bottom:7px;font-size:13px;padding:9px}
+.panel.hasroute .handle{display:block}
+.panel.compact>.row,.panel.compact>.actions,.panel.compact>#message,.panel.compact>.toggleRow{display:none}
+.panel.compact #routeInfo{margin-top:0}
+.panel.nav{padding:8px}.panel.nav #routeInfo .stats,.panel.nav #alts{display:none}
+.speedo{position:absolute;z-index:2;left:11px;bottom:58px;width:78px;height:78px;border-radius:50%;display:none;flex-direction:column;align-items:center;justify-content:center;background:var(--cardA);border:4px solid var(--cyan);box-shadow:0 0 18px var(--glow),0 4px 14px var(--shadow);pointer-events:none;transition:border-color .3s}
+.speedo.on{display:flex}.speedo b{font-size:28px;line-height:1;color:var(--text)}.speedo small{font-size:10px;color:var(--muted);letter-spacing:.6px;margin-top:2px}
+.turn{display:flex;align-items:center;gap:12px;margin:8px 0;padding:10px 12px;background:var(--turnbg);border:1px solid var(--turnb);border-radius:12px}
+.tarrow{font-size:44px;line-height:1;color:var(--cyan);width:50px;text-align:center;flex:none}
+.tmain{min-width:0}.tmain b{display:block;font-size:30px;line-height:1.05;color:var(--text)}.tmain span{display:block;font-size:14px;line-height:1.3;color:var(--sub);margin-top:3px}
+.eta{display:flex;gap:7px;margin-bottom:8px}.eta div{flex:1;text-align:center;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:7px 4px}
+.eta b{display:block;font-size:18px;color:var(--green)}.eta small{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.panel.compact #routeInfo .stats{display:none}.panel.nav .tmain b{font-size:36px}
+.navtop,.navbot{position:absolute;z-index:4;left:10px;right:10px;display:none;align-items:center;gap:10px;border-radius:14px;box-shadow:0 6px 18px var(--shadow)}
+.navtop{top:10px;padding:8px 12px;background:var(--navtopbg);border:1px solid var(--turnb)}
+.ntarrow{font-size:38px;line-height:1;color:var(--cyan);width:44px;text-align:center;flex:none}
+.ntmain{min-width:0;flex:1}.ntmain b{display:block;font-size:30px;line-height:1.05;color:var(--text)}.ntmain span{display:block;font-size:13px;line-height:1.25;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.navbot{bottom:34px;padding:7px 8px;gap:6px;background:var(--navbotbg);border:1px solid var(--border)}
+.nbstat{flex:1;text-align:center;min-width:0}.nbstat b{display:block;font-size:17px;color:var(--green);white-space:nowrap}.nbstat small{font-size:9px;color:var(--muted);text-transform:uppercase}
+.navbot button{padding:9px 11px;font-size:15px;flex:none}
+body.navmode .navtop,body.navmode .navbot{display:flex}
+body.navmode .panel,body.navmode .mapnote,body.navmode .mode{display:none}
+body.navmode .fabstack{bottom:108px}body.navmode .speedo{bottom:108px}
+.panel.compact:not(.nav) .turn{display:none}
+.trip{margin:0 0 8px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:12px}
+.trip summary{cursor:pointer;line-height:1.5;color:var(--sub)}
+.tr{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}.tr:first-child{margin-top:8px}
+.tr b{color:var(--green);text-align:right}.tr small{color:var(--muted);margin-left:5px}.trip a{color:var(--cyan);font-weight:700}
+.trip .note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.4}
+.dock{position:absolute;z-index:3;left:10px;right:10px;bottom:30px;display:none;flex-direction:column;gap:10px}
+body.home .dock{display:flex}body.home .panel{display:none}
+body.home .fabstack,body.home .speedo{bottom:150px}
+.where{display:flex;align-items:center;gap:10px;width:100%;padding:15px 18px;border-radius:30px;background:var(--card);border:1px solid var(--border);box-shadow:0 8px 28px var(--shadow);font-size:17px;font-weight:700;color:var(--muted);text-align:left}
+.chiprow{display:flex;gap:8px;overflow-x:auto;padding:2px 1px 4px;scrollbar-width:none}.chiprow::-webkit-scrollbar{display:none}
+.sc{flex:none;padding:10px 15px;border-radius:22px;background:var(--card);border:1px solid var(--border);box-shadow:0 4px 14px var(--shadow);font-size:14px;color:var(--text);user-select:none;-webkit-user-select:none}
+.linkbtn{display:none;background:none;border:0;color:var(--cyan);padding:2px 2px 6px;font-size:12px}
+.panel.simple .linkbtn{display:inline-block}.panel.compact>.linkbtn{display:none}
+.panel.simple .startrow{display:none}.panel.simple:not(.hasroute) .toggleRow{display:none}
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group{display:none}
+.avoid{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);padding:8px 2px 0}.avoid input{width:19px;height:19px;padding:0;accent-color:var(--cyan)}.panel.compact>.avoid{display:none}
 .limit{position:absolute;z-index:2;left:98px;bottom:58px;width:54px;height:54px;border-radius:50%;background:#fff;border:6px solid #e5484d;color:#111;font-weight:800;font-size:19px;display:none;align-items:center;justify-content:center;pointer-events:none}
 body.navmode .limit{bottom:112px}body.home .limit{bottom:150px}
 .sheet{position:fixed;inset:0;z-index:50;display:none;align-items:flex-end;justify-content:center;background:#0009;padding:10px}.sheet.on{display:flex}
@@ -18,11 +95,75 @@ body.navmode .limit{bottom:112px}body.home .limit{bottom:150px}
 .sheetcard h3{margin:0;font-size:19px}.sheetcard .hint{margin:0;font-size:12px;color:var(--muted)}
 .seg{display:flex;gap:8px}.seg button{flex:1}.seg button.on{background:var(--cyan);color:var(--ink);border-color:var(--cyan)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.two input{font-size:13px}
-@media(min-width:760px)''')
-# ---------- HTML
-rep('<div class="sug" id="sug"></div>','<label class="avoid"><input type="checkbox" id="avoidToll"> Avoid toll roads</label>\n    <div class="sug" id="sug"></div>')
-rep('<div class="speedo" id="speedo"','<div class="limit" id="limitSign" aria-label="Speed limit"></div>\n  <div class="speedo" id="speedo"')
-rep('</main>','''</main>
+@media(min-width:760px){.panel{width:380px;right:auto;top:14px;left:14px}.mode{right:14px;top:14px}.fabstack{right:14px;bottom:28px}}
+
+.mapnote,.mode{display:none}
+.topbar{height:50px}.brand{font-size:17px}
+.panel{border-radius:20px;padding:12px;box-shadow:0 8px 28px var(--shadow)}
+button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 12px}
+.tmain span,.ntmain span{color:var(--sub)}
+</style>
+</head>
+<body class="home">
+<div class="app">
+<header class="topbar">
+  <div class="brand">ROAD<span>X</span> MAPS <span style="font-size:11px;letter-spacing:1px">3D</span></div>
+  <div style="display:flex;align-items:center;gap:7px"><button id="themeBtn" aria-label="Theme" style="padding:6px 9px;font-size:15px">🌓</button><button id="installBtn" style="display:none;padding:7px 9px;font-size:11px">＋ Install</button><div class="pill" id="gpsStatus">● GPS OFF</div></div>
+</header>
+<main class="main">
+  <div id="map" aria-label="Interactive 3D map"></div>
+  <div class="mode" id="modeLabel">3D VIEW • TILT ON</div>
+  <section class="panel">
+    <button class="handle" id="panelToggle">▾ Hide panel</button>
+    <div class="row startrow">
+      <input id="start" placeholder="Start: use current GPS" aria-label="Starting point">
+      <button class="iconbtn" id="gpsBtn" title="Use GPS">⌖</button>
+    </div>
+    <div class="row">
+      <input id="destination" placeholder="Where do you want to go?" aria-label="Destination" autocomplete="off">
+      <button class="iconbtn" id="searchBtn" title="Search destination">⌕</button>
+    </div>
+    <div class="actions">
+      <button class="primary" id="routeBtn">➤ Find route</button>
+      <button id="clearBtn">✕ Cancel</button>
+    </div>
+    <button class="linkbtn" id="startToggle">From: my location ✎</button>
+    <label class="avoid"><input type="checkbox" id="avoidToll"> Avoid toll roads</label>
+    <div class="sug" id="sug"></div>
+    <div id="message" role="status">3D map loading… Search for a destination or use GPS.</div>
+    <div id="routeInfo">
+      <div class="stats">
+        <div class="stat"><strong id="distance">—</strong><small>Distance</small></div>
+        <div class="stat"><strong id="duration">—</strong><small>Est. drive</small></div>
+        <div class="stat"><strong id="speed">0</strong><small>km/h</small></div>
+      </div>
+      <div class="alts" id="alts"></div>
+      <div class="turn" id="turnCard"><div class="tarrow" id="tArrow">↑</div><div class="tmain"><b id="tDist">—</b><span id="tText">Route ready. Follow road signs.</span></div></div>
+      <div class="eta"><div><b id="etaMin">—</b><small>Time left</small></div><div><b id="etaKm">—</b><small>km left</small></div><div><b id="etaClock">—</b><small>Arrive</small></div></div>
+      <details class="trip" id="trip"><summary id="tripSum">Travel options</summary><div id="tripBody"></div></details>
+      <div class="actions">
+        <button id="voiceBtn">🔊 Voice: off</button>
+        <button class="primary" id="navBtn">▶ Start guidance</button>
+      </div>
+    </div>
+    <div class="toggleRow">
+      <button id="tiltBtn">▱ 3D tilt: on</button>
+      <button id="recenterBtn">◎ Recenter route</button>
+    </div>
+  </section>
+  <div class="dock" id="dock"><button class="where" id="whereBtn"><span>🔍</span> Where to?</button><div class="chiprow" id="chips2"></div></div>
+  <div class="fabstack">
+    <button class="fab" id="locateBtn" title="Locate me">⌖</button>
+    <button class="fab" id="pitchBtn" title="Toggle 3D view">🏙️</button>
+    <button class="fab" id="zoomIn" title="Zoom in">＋</button>
+    <button class="fab" id="zoomOut" title="Zoom out">−</button>
+  </div>
+  <div class="navtop" id="navTop"><div class="ntarrow" id="ntArrow">↑</div><div class="ntmain"><b id="ntDist">—</b><span id="ntText"></span></div></div>
+  <div class="navbot" id="navBot"><div class="nbstat"><b id="nbMin">—</b><small>Left</small></div><div class="nbstat"><b id="nbKm">—</b><small>km</small></div><div class="nbstat"><b id="nbClock">—</b><small>Arrive</small></div><button id="nbVoice" aria-label="Voice">🔇</button><button id="nbEdit" aria-label="Search or edit route">⌕</button><button class="primary" id="nbStop">■ Stop</button></div>
+  <div class="limit" id="limitSign" aria-label="Speed limit"></div>
+  <div class="speedo" id="speedo" aria-label="Current speed"><b id="speedBig">0</b><small>km/h</small></div>
+  <div class="mapnote">ROADX 3D • Building coverage varies by area • Drive safely</div>
+</main>
 <div class="sheet" id="carSheet"><div class="sheetcard">
   <h3>Your vehicle</h3><p class="hint">Tell RoadX what you drive. This stays on this phone.</p>
   <div class="seg"><button data-t="car" class="on">🚗 Car</button><button data-t="moto">🏍 Motorcycle</button></div>
@@ -31,10 +172,280 @@ rep('</main>','''</main>
   <input id="carModel" placeholder="Model (e.g. Myvi)" autocomplete="off">
   <div class="two"><input id="carFuel" type="number" step="0.1" inputmode="decimal" placeholder="Fuel L/100 km (optional)"><input id="carPrice" type="number" step="0.01" inputmode="decimal" placeholder="Petrol RM/litre (optional)"></div>
   <div class="actions"><button id="carSkip">Skip</button><button class="primary" id="carSave">Save</button></div>
-</div></div>''')
-# ---------- JS: routing with avoid-tolls + speed-limit data
-rep("let walkSec=null,walkM=null,tripA=null;","let walkSec=null,walkM=null,tripA=null,avoidToll=false,noLimits=false;")
-between("const url=`https://router.project-osrm.org","const wasNav=navActive;","""const baseUrl=`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=true&alternatives=3`;
+</div></div>
+</div>
+<script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const setMessage = msg => $('message').textContent = msg;
+  const escapeHtml = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const THEME_KEY='roadx_theme';
+  let themeMode='auto';try{themeMode=localStorage.getItem(THEME_KEY)||'auto'}catch(e){}
+  function sunIsUp(lat,lon){
+    try{
+      const r=Math.PI/180,n=new Date(),d=Math.floor((n-new Date(n.getFullYear(),0,0))/864e5),g=2*Math.PI/365*(d-1);
+      const dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+      const eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+      const ha=Math.acos(Math.cos(90.833*r)/(Math.cos(lat*r)*Math.cos(dec))-Math.tan(lat*r)*Math.tan(dec))/r;
+      if(isNaN(ha))throw 0;
+      const w=x=>((x%1440)+1440)%1440,sr=w(720-4*(lon+ha)-eq),ss=w(720-4*(lon-ha)-eq),now=n.getUTCHours()*60+n.getUTCMinutes();
+      return sr<ss?(now>=sr&&now<ss):(now>=sr||now<ss);
+    }catch(e){const h=new Date().getHours();return h>=7&&h<19}
+  }
+  const wantTheme=(lat,lon)=>themeMode==='auto'?(sunIsUp(lat,lon)?'light':'dark'):themeMode;
+  const STYLE={dark:'https://tiles.openfreemap.org/styles/dark',light:'https://tiles.openfreemap.org/styles/bright'};
+  let curTheme=wantTheme(3.044,101.445);
+  document.documentElement.dataset.theme=curTheme;
+  const map = new maplibregl.Map({
+    container:'map',
+    style:STYLE[curTheme],
+    center:[101.445,3.044],
+    zoom:14,
+    pitch:58,
+    bearing:-18,
+    maxPitch:75,
+    attributionControl:true
+  });
+  map.addControl(new maplibregl.NavigationControl({showCompass:true,visualizePitch:true}),'bottom-right');
+  map.addControl(new maplibregl.ScaleControl({maxWidth:100,unit:'metric'}),'bottom-left');
+
+  let currentPosition=null, gpsMarker=null, routeLayerId='roadx-route', routeSourceId='roadx-route-source';
+  let startMarker=null, endMarker=null, routeData=null, navActive=false, voiceOn=false, stepIndex=0, watchId=null, lastSpoken=-1, tiltOn=true;
+  let styleReady=false;
+
+  function setGps(on){
+    $('speedo').classList.toggle('on',on);
+    $('gpsStatus').textContent=on?'● GPS READY':'● GPS OFF';
+    $('gpsStatus').style.color=on?'var(--good)':'var(--warn)';
+    $('gpsStatus').style.borderColor=on?'var(--goodb)':'var(--warnb)';
+  }
+  function fmtDist(m){return m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m'}
+  function fmtTime(s){const m=Math.round(s/60);return m<60?m+' min':Math.floor(m/60)+' h '+m%60+' min'}
+
+  map.on('load',()=>{
+    styleReady=true;
+    add3DBuildings();
+    setMessage('3D map ready. Search a destination or tap ⌖ for GPS.');
+  });
+  map.on('error',e=>{
+    if(!styleReady) setMessage('Map style failed to load. Check internet and reload this page.');
+  });
+
+  function add3DBuildings(){
+    const style=map.getStyle();
+    if(!style || !style.layers) return;
+    if(map.getLayer('roadx-3d-buildings')) return;
+    const candidates=style.layers.filter(l=>
+      l.type==='fill' &&
+      (l['source-layer']==='building' || /building/i.test(l.id)) &&
+      l.source && map.getSource(l.source) && map.getSource(l.source).type==='vector'
+    );
+    if(!candidates.length){
+      setMessage('Map loaded. This style has limited building extrusion support in this area.');
+      return;
+    }
+    const sourceLayer=candidates[0]['source-layer'];
+    const source=candidates[0].source;
+    let beforeId;
+    const firstSymbol=style.layers.find(l=>l.type==='symbol');
+    if(firstSymbol) beforeId=firstSymbol.id;
+    try{
+      map.addLayer({
+        id:'roadx-3d-buildings',
+        type:'fill-extrusion',
+        source,
+        'source-layer':sourceLayer,
+        minzoom:13,
+        filter:['!=',['get','hide_3d'],true],
+        paint:{
+          'fill-extrusion-color':['interpolate',['linear'],['coalesce',['get','render_height'],['get','height'],10],
+            ...(curTheme==='light'?[0,'#dfe4ea',25,'#d3dae2',80,'#c8d1da',180,'#bcc7d2']:[0,'#172c43',25,'#1d4563',80,'#28617b',180,'#34839a'])],
+          'fill-extrusion-height':['interpolate',['linear'],['zoom'],13,0.01,15,['coalesce',['get','render_height'],['get','height'],10]],
+          'fill-extrusion-base':['coalesce',['get','render_min_height'],['get','min_height'],0],
+          'fill-extrusion-opacity':0.88,
+          'fill-extrusion-vertical-gradient':true
+        }
+      },beforeId);
+    }catch(err){console.warn('Could not add 3D buildings:',err);}
+  }
+
+  async function geocode(query){
+    const pk=Object.values(picked).find(x=>x&&x.text===query);if(pk)return{lat:pk.lat,lon:pk.lon,name:pk.text};
+    for(const cc of ['&countrycodes=my','']){
+      const res=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1'+cc+'&q='+encodeURIComponent(query),{headers:{'Accept-Language':'en'}});
+      if(!res.ok) throw new Error('Place search is temporarily unavailable.');
+      const data=await res.json();
+      if(data.length) return {lat:Number(data[0].lat),lon:Number(data[0].lon),name:data[0].display_name};
+    }
+    throw new Error('Place not found. Try a more specific name.');
+  }
+  function addPointMarker(p,label,color){
+    const el=document.createElement('div');
+    el.style.cssText=`width:17px;height:17px;border-radius:50%;background:${color};border:3px solid #f3fbff;box-shadow:0 0 15px ${color}`;
+    return new maplibregl.Marker({element:el}).setLngLat([p.lon,p.lat]).setPopup(new maplibregl.Popup({offset:18}).setHTML('<b>'+escapeHtml(label)+'</b>')).addTo(map);
+  }
+  function getStart(){
+    const text=$('start').value.trim();
+    if(!text || /current gps|current location|my location/i.test(text)){
+      if(currentPosition) return Promise.resolve({lat:currentPosition.lat,lon:currentPosition.lon,name:'Your GPS location'});
+      throw new Error('Tap the GPS button first, or type a starting place.');
+    }
+    return geocode(text);
+  }
+  let alts=[],selIdx=0,dest=null,rerouting=false,offCount=0,wakeLock=null;
+  const RK='roadx_recent';
+  function recents(){try{return(JSON.parse(localStorage.getItem(RK))||[]).map(x=>typeof x==='string'?{t:x}:x)}catch(e){return[]}}
+  function fillRecents(){if(typeof renderDock==='function')renderDock()}
+  function saveRecent(t,b){try{const e={t:t,lat:b&&b.lat,lon:b&&b.lon};localStorage.setItem(RK,JSON.stringify([e,...recents().filter(x=>x.t!==t)].slice(0,10)));fillRecents()}catch(x){}}
+  function keepAwake(on){try{if(on&&'wakeLock'in navigator)navigator.wakeLock.request('screen').then(l=>wakeLock=l).catch(()=>{});else if(wakeLock){wakeLock.release();wakeLock=null}}catch(e){}}
+  function drawRoutes(){try{drawRoutes0()}catch(e){}}
+  function drawRoutes0(){
+    const fc={type:'FeatureCollection',features:alts.map((r,i)=>({type:'Feature',properties:{sel:i===selIdx},geometry:r.geometry}))};
+    if(map.getSource(routeSourceId)){map.getSource(routeSourceId).setData(fc);return}
+    map.addSource(routeSourceId,{type:'geojson',data:fc});
+    map.addLayer({id:routeLayerId,type:'line',source:routeSourceId,layout:{'line-join':'round','line-cap':'round','line-sort-key':['case',['get','sel'],1,0]},paint:{'line-color':['case',['get','sel'],curTheme==='light'?'#0b72e8':'#35e7ff',curTheme==='light'?'#9db0c3':'#5b7893'],'line-width':['case',['get','sel'],7,4],'line-opacity':0.95}});
+  }
+  function showInfo(){
+    routeData=alts[selIdx];
+    $('distance').textContent=fmtDist(routeData.distance);$('duration').textContent=fmtTime(routeData.duration);
+    $('alts').innerHTML=alts.length>1?alts.map((r,i)=>'<button class="'+(i===selIdx?'on':'')+'" data-i="'+i+'">'+fmtTime(r.duration)+' · '+fmtDist(r.distance)+'</button>').join(''):'';
+    $('routeInfo').style.display='block';updateStep();renderTrip();
+  }
+  function selectRoute(i){selIdx=i;stepIndex=0;lastSpoken=-1;drawRoutes();showInfo()}
+  function removeRoute(){
+    if(map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
+    if(map.getSource(routeSourceId)) map.removeSource(routeSourceId);
+    if(startMarker){startMarker.remove();startMarker=null}
+    if(endMarker){endMarker.remove();endMarker=null}
+    routeData=null;alts=[];navActive=false;stepIndex=0;lastSpoken=-1;
+    $('routeInfo').style.display='none';$('alts').innerHTML='';
+    $('navBtn').textContent='▶ Start guidance';
+    if('speechSynthesis' in window) speechSynthesis.cancel();
+  }
+  const TOLL_RM_PER_KM=0.18,TOLL_MIN_RM=1; // rough Malaysia expressway rate; edit to taste
+  let walkSec=null,walkM=null,tripA=null,avoidToll=false,noLimits=false;
+  function tollInfo(r){
+    let m=0,has=false;
+    (r.legs||[]).forEach(l=>(l.steps||[]).forEach(st=>{const it=st.intersections||[];
+      it.forEach((x,i)=>{if((x.classes||[]).includes('toll')){has=true;const y=it[i+1];if(y)m+=distMeters(x.location[1],x.location[0],y.location[1],y.location[0])}})}));
+    return{has,km:m/1000};
+  }
+  async function fetchWalk(a,b){
+    try{
+      const r=await fetch('https://routing.openstreetmap.de/routed-foot/route/v1/driving/'+a.lon+','+a.lat+';'+b.lon+','+b.lat+'?overview=false');
+      const j=await r.json();
+      if(j.routes&&j.routes[0]){walkSec=j.routes[0].duration;walkM=j.routes[0].distance;renderTrip()}
+    }catch(e){}
+  }
+  function renderTrip(){
+    if(!routeData)return;
+    const car=routeData.duration,km=routeData.distance,moto=car*0.9;
+    const walk=walkSec!=null?walkSec:km/1.39,walkKm=walkM!=null?walkM:km;
+    const t=tollInfo(routeData),rm=t.has?Math.max(TOLL_MIN_RM,Math.round(t.km*TOLL_RM_PER_KM*10)/10):0;
+    $('tripSum').textContent='🚗 '+fmtTime(car)+' · 🏍 ≈'+fmtTime(moto)+' · 🚶 '+fmtTime(walk)+' · 💰 '+(t.has?'~RM '+rm.toFixed(0):'No toll');
+    const train=tripA&&dest?'https://www.google.com/maps/dir/?api=1&origin='+tripA.lat+','+tripA.lon+'&destination='+dest.lat+','+dest.lon+'&travelmode=transit':'';
+    $('tripBody').innerHTML=
+      '<div class="tr"><span>🚗 Car</span><span><b>'+fmtTime(car)+'</b><small>'+fmtDist(km)+'</small></span></div>'+
+      '<div class="tr"><span>🏍 Motorcycle</span><span><b>≈ '+fmtTime(moto)+'</b><small>estimate</small></span></div>'+
+      '<div class="tr"><span>🚶 Walk</span><span><b>'+fmtTime(walk)+'</b><small>'+fmtDist(walkKm)+'</small></span></div>'+
+      '<div class="tr"><span>🚆 Train</span><span>'+(train?'<a href="'+train+'" target="_blank" rel="noopener">See train times ↗</a>':'—')+'</span></div>'+
+      (function(){const cv=car();if(!cv||!cv.lper||!cv.price)return'';const L=km/1000*cv.lper/100;return'<div class="tr"><span>⛽ Fuel'+(carName(cv)?' · '+escapeHtml(carName(cv)):'')+'</span><span><b>about RM '+(L*cv.price).toFixed(2)+'</b><small>'+L.toFixed(1)+' L</small></span></div>'})()+
+      '<div class="tr"><span>💰 Toll</span><span><b>'+(t.has?'about RM '+rm.toFixed(2):'No toll roads')+'</b>'+(t.has?'<small>'+t.km.toFixed(1)+' km tolled</small>':'')+'</span></div>'+
+      '<div class="note">Toll is a rough estimate (RM '+TOLL_RM_PER_KM.toFixed(2)+' per km on toll roads, car). Real price depends on the plaza. Motorcycle time is estimated from the car route. Train times open in Google Maps.</div>';
+  }
+  const panelEl=document.querySelector('.panel');
+  function setCompact(on){panelEl.classList.toggle('compact',on);$('panelToggle').textContent=on?'⌕ Edit route or search':'▾ Hide panel'}
+  function setSpeedo(k){$('speedBig').textContent=k;$('speedo').style.borderColor=k>110?'#e5484d':k>80?'#f5a524':'var(--cyan)'}
+  const CAR='<svg viewBox="0 0 40 64" width="30" height="48" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="4" width="28" height="56" rx="12" style="fill:var(--car)" stroke="#fff" stroke-width="3"/><rect x="11" y="16" width="18" height="12" rx="4" fill="#07101d"/><rect x="11" y="38" width="18" height="10" rx="4" fill="#07101d"/><rect x="9" y="6" width="6" height="4" rx="2" fill="#fff6b0"/><rect x="25" y="6" width="6" height="4" rx="2" fill="#fff6b0"/></svg>';
+  const BIKE='<svg viewBox="0 0 40 64" width="26" height="48" xmlns="http://www.w3.org/2000/svg"><rect x="15" y="6" width="10" height="52" rx="5" style="fill:var(--car)" stroke="#fff" stroke-width="3"/><rect x="5" y="14" width="30" height="5" rx="2.5" fill="#fff"/><rect x="16.5" y="24" width="7" height="14" rx="3" fill="#07101d"/><circle cx="20" cy="9" r="3" fill="#fff6b0"/></svg>';
+  const picked={};let sugTimer=null,sugInput=null,sugSeq=0;
+  function hideSug(){$('sug').style.display='none'}
+  function showSug(inp,items){
+    const el=$('sug');sugInput=inp;
+    if(!items.length){hideSug();return}
+    el.style.top=(inp.offsetTop+inp.offsetHeight+4)+'px';
+    el.innerHTML=items.map((it,i)=>it.hdr?'<div style="padding:8px 12px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line)">'+escapeHtml(it.hdr)+'</div>':'<button type="button" data-i="'+i+'">'+escapeHtml(it.title)+(it.sub?'<small>'+escapeHtml(it.sub)+'</small>':'')+'</button>').join('');
+    el._items=items;el.style.display='block';
+  }
+  function origin(){const c=map.getCenter();return currentPosition?{lat:currentPosition.lat,lon:currentPosition.lon}:{lat:c.lat,lon:c.lng}}
+  function recentItems(){
+    const o=origin();
+    return recents().map(r=>{const d=r.lat!=null?distMeters(o.lat,o.lon,r.lat,r.lon):null;
+      return{title:r.t.split(',')[0],sub:'🕘 Recent'+(d!=null?' · '+fmtDist(d):'')+(r.t.includes(',')?' · '+r.t.split(',').slice(1,3).join(',').trim():''),lat:r.lat,lon:r.lon,full:r.t}});
+  }
+  function showRecent(inp,msg){
+    const r=recentItems();
+    showSug(inp,r.length?[{hdr:msg||'Recent places'}].concat(r):(msg?[{hdr:msg}]:[]));
+  }
+  async function nominatim(q,o){
+    for(const cc of ['&countrycodes=my','']){
+      const res=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=8'+cc+'&q='+encodeURIComponent(q),{headers:{'Accept-Language':'en'}});
+      if(!res.ok)continue;
+      const data=await res.json();
+      if(data.length)return data.map(x=>{
+        const parts=x.display_name.split(',').map(v=>v.trim()),lat=Number(x.lat),lon=Number(x.lon),d=distMeters(o.lat,o.lon,lat,lon);
+        return{title:x.name||parts[0],sub:fmtDist(d)+' · '+parts.slice(1,4).join(', '),d,lat,lon,full:parts.slice(0,4).join(', ')};
+      });
+    }
+    return[];
+  }
+  async function suggest(inp){
+    const q=inp.value.trim();
+    if(q.length<2){showRecent(inp);return}
+    const seq=++sugSeq,o=origin();
+    const base='https://photon.komoot.io/api/?lang=en&limit=20&lat='+o.lat+'&lon='+o.lon+'&q='+encodeURIComponent(q);
+    const box='&bbox='+[o.lon-1.5,o.lat-1.5,o.lon+1.5,o.lat+1.5].join(',');
+    let items=[];
+    try{
+      let feats=[];
+      for(const extra of [box,'']){
+        const res=await fetch(base+extra);
+        if(seq!==sugSeq)return;
+        if(!res.ok)continue;
+        feats=(await res.json()).features||[];
+        if(seq!==sugSeq)return;
+        if(feats.length)break;
+      }
+      items=feats.map(f=>{
+        const p=f.properties,co=f.geometry.coordinates,d=distMeters(o.lat,o.lon,co[1],co[0]);
+        const title=p.name||[p.housenumber,p.street].filter(Boolean).join(' ')||p.city||'Place';
+        const sub=[p.name&&p.street?p.street:'',p.district,p.city,p.state].filter(x=>x&&x!==title).join(', ');
+        return{title,sub:fmtDist(d)+(sub?' · '+sub:''),d,lat:co[1],lon:co[0],full:title+(sub?', '+sub:'')};
+      });
+    }catch(e){}
+    if(items.length<3){
+      try{const extra=await nominatim(q,o);if(seq!==sugSeq)return;items=items.concat(extra)}catch(e){}
+    }
+    if(seq!==sugSeq)return;
+    const seen=new Set();
+    items=items.filter(it=>{const k=it.title.toLowerCase()+Math.round(it.lat*500)+Math.round(it.lon*500);if(seen.has(k))return false;seen.add(k);return true}).sort((a,b)=>a.d-b.d).slice(0,6);
+    if(items.length)showSug(inp,items);
+    else showRecent(inp,'No places found for "'+q+'". Your recent places:');
+  }
+  ['start','destination'].forEach(id=>{
+    const inp=$(id);
+    inp.addEventListener('input',()=>{clearTimeout(sugTimer);sugTimer=setTimeout(()=>suggest(inp),350)});
+    inp.addEventListener('focus',()=>{if(inp.value.trim().length<2)showRecent(inp)});
+  });
+  $('sug').addEventListener('mousedown',e=>e.preventDefault());
+  $('sug').addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;
+    const it=$('sug')._items[+b.dataset.i],inp=sugInput;
+    let saved=null;if(settingPlace&&inp.id==='destination'&&it.lat!=null){setPlace(settingPlace,{t:it.full,lat:it.lat,lon:it.lon});saved=settingPlace==='home'?'Home':'Work';settingPlace=null}
+    inp.value=it.full;picked[inp.id]=it.lat!=null?{text:it.full,lat:it.lat,lon:it.lon}:null;hideSug();
+    if(it.lat!=null&&inp.id==='destination'){map.flyTo({center:[it.lon,it.lat],zoom:16,pitch:tiltOn?58:0});setMessage('Selected: '+it.title+(saved?'. Saved as '+saved+'.':'')+' Tap Find route.')}
+  });
+  document.addEventListener('click',e=>{if(!e.target.closest('#sug')&&e.target!==sugInput)hideSug()});
+  async function findRoute(re){
+    hideSug();
+    if(!styleReady){setMessage('Map is still loading. Please wait a moment.');return}
+    const destText=$('destination').value.trim();
+    if(!re&&!destText){setMessage('Enter a destination first.');$('destination').focus();return}
+    if(!re){$('routeBtn').disabled=true;setMessage('Searching places and calculating route…')}
+    try{
+      const [a,b]=re?[{lat:currentPosition.lat,lon:currentPosition.lon,name:'Your GPS location'},dest]:await Promise.all([getStart(),geocode(destText)]);
+      const baseUrl=`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=true&alternatives=3`;
       const ex=avoidToll?'&exclude=toll':'',tries=[];
       if(!noLimits)tries.push(ex+'&annotations=maxspeed');
       tries.push(ex);
@@ -49,10 +460,70 @@ between("const url=`https://router.project-osrm.org","const wasNav=navActive;","
       if(!json)throw new Error(lastOk?'No driving route found for those locations.':'Routing service unavailable. Try again later.');
       if(!used.includes('annotations'))noLimits=true;
       const avoidFailed=avoidToll&&!used.includes('exclude');
-      """)
-rep("+'. Time excludes live traffic.');","+'. Time excludes live traffic.'+(avoidFailed?' No toll-free route found.':''));")
-# nearest segment + speed limit
-between("function offRoute(){","function checkNavigation(){","""function nearest(){
+      const wasNav=navActive;
+      removeRoute();
+      dest=b;alts=json.routes;selIdx=0;tripA=a;walkSec=null;walkM=null;
+      startMarker=a.name==='Your GPS location'?null:addPointMarker(a,'START · '+(a.name||'Start'),curTheme==='light'?'#1aa564':'#69ffb1');
+      endMarker=addPointMarker(b,'DESTINATION · '+(b.name||destText),curTheme==='light'?'#0b72e8':'#35e7ff');
+      drawRoutes();stepIndex=0;showInfo();panelEl.classList.add('hasroute');setCompact(true);fetchWalk(a,b);document.body.classList.remove('home');
+      if(re){if(wasNav){navActive=true;$('navBtn').textContent='Ⅱ Pause guidance';speak('Rerouting.')}setMessage('Rerouted from your position.')}
+      else{
+        saveRecent(destText,b);
+        map.fitBounds([[Math.min(a.lon,b.lon),Math.min(a.lat,b.lat)],[Math.max(a.lon,b.lon),Math.max(a.lat,b.lat)]],{padding:{top:250,bottom:90,left:35,right:35},maxZoom:16,duration:900});
+        setMessage('Route ready'+(alts.length>1?' · '+alts.length+' options, tap one to choose':'')+'. Time excludes live traffic.'+(avoidFailed?' No toll-free route found.':''));
+      }
+    }catch(e){setMessage(e.message||'Could not calculate route. Check your connection.')}
+    finally{$('routeBtn').disabled=false;rerouting=false}
+  }
+  function steps(){return (routeData?.legs||[]).flatMap(l=>l.steps||[]).filter(s=>s.distance>1)}
+  function instruction(s){
+    if(!s) return 'Follow the highlighted route.';
+    const type=s.maneuver?.type||'continue', mod=s.maneuver?.modifier||'';
+    const street=s.name?' onto '+s.name:'';
+    const phrase={
+      depart:'Start driving',turn:'Turn '+mod,continue:'Continue '+(mod||'straight'),
+      merge:'Merge '+mod,'on ramp':'Take the ramp '+mod,'off ramp':'Take the exit '+mod,
+      fork:'Keep '+mod+' at the fork',roundabout:'Enter the roundabout',
+      rotary:'Enter the roundabout',arrive:'You have arrived at your destination',
+      end:'Route complete'
+    };
+    return (phrase[type]||'Continue '+mod)+street+'.';
+  }
+  function arrowFor(s){
+    const t=s.maneuver?.type,m=s.maneuver?.modifier||'';
+    if(t==='arrive')return'⚑';
+    if(t==='roundabout'||t==='rotary')return'⟳';
+    return({left:'↰',right:'↱','slight left':'↖','slight right':'↗','sharp left':'↙','sharp right':'↘',uturn:'↶'})[m]||'↑';
+  }
+  function turnDist(m){return m>=1000?(m/1000).toFixed(1)+' km':Math.max(10,Math.round(m/10)*10)+' m'}
+  function updateStep(){
+    const all=steps();
+    if(!all.length){$('tDist').textContent='—';$('tText').textContent='Follow the highlighted route and road signs.';return}
+    stepIndex=Math.min(stepIndex,all.length-1);
+    const nx=all[stepIndex+1]||all[stepIndex],loc=nx.maneuver?.location,last=!all[stepIndex+1];
+    let d=all[stepIndex].distance;
+    if(navActive&&currentPosition&&loc)d=distMeters(currentPosition.lat,currentPosition.lon,loc[1],loc[0]);
+    const rem=all.slice(stepIndex).reduce((t,x)=>t+x.distance,0),sec=routeData.duration*rem/routeData.distance;
+    $('tArrow').textContent=arrowFor(nx);
+    $('tDist').textContent=last?'Arrive':turnDist(d);
+    $('tText').textContent=instruction(nx);
+    $('etaMin').textContent=fmtTime(sec);
+    $('etaKm').textContent=(rem/1000).toFixed(1);
+    const clk=new Date(Date.now()+sec*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    $('etaClock').textContent=clk;
+    $('ntArrow').textContent=$('tArrow').textContent;$('ntDist').textContent=$('tDist').textContent;$('ntText').textContent=$('tText').textContent;
+    $('nbMin').textContent=$('etaMin').textContent;$('nbKm').textContent=$('etaKm').textContent;$('nbClock').textContent=clk;
+  }
+  function speak(text){
+    if(!voiceOn||!('speechSynthesis'in window))return;
+    speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='en-MY';u.rate=1;speechSynthesis.speak(u);
+  }
+  function distMeters(a,b,c,d){
+    const r=Math.PI/180,dl=(c-a)*r,dn=(d-b)*r;
+    const x=Math.sin(dl/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(dn/2)**2;
+    return 6371000*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+  }
+  function nearest(){
     const pts=routeData.geometry.coordinates,k=111320,c=Math.cos(currentPosition.lat*Math.PI/180),px=currentPosition.lon*k*c,py=currentPosition.lat*k;let best=Infinity,bi=0;
     for(let i=0;i<pts.length-1;i++){
       const ax=pts[i][0]*k*c,ay=pts[i][1]*k,dx=pts[i+1][0]*k*c-ax,dy=pts[i+1][1]*k-ay,L=dx*dx+dy*dy;
@@ -74,13 +545,96 @@ between("function offRoute(){","function checkNavigation(){","""function nearest
     el.textContent=lim;el.style.display='flex';
     if(kmh>lim+5){$('speedo').style.borderColor='#e5484d';if(Date.now()-lastWarn>30000){lastWarn=Date.now();speak('Slow down. Speed limit '+lim)}}
   }
-  """)
-rep("setSpeedo(kmh);","setSpeedo(kmh);updateLimit(kmh);")
-# ---------- vehicle profile
-rep("const picked={};","""const BIKE='<svg viewBox="0 0 40 64" width="26" height="48" xmlns="http://www.w3.org/2000/svg"><rect x="15" y="6" width="10" height="52" rx="5" style="fill:var(--car)" stroke="#fff" stroke-width="3"/><rect x="5" y="14" width="30" height="5" rx="2.5" fill="#fff"/><rect x="16.5" y="24" width="7" height="14" rx="3" fill="#07101d"/><circle cx="20" cy="9" r="3" fill="#fff6b0"/></svg>';
-  const picked={};""")
-rep("el.innerHTML=CAR;","el.innerHTML=vehicleSvg();")
-rep("function renderDock(){","""const CK='roadx_car',CSK='roadx_car_skip';let carType='car';
+  function checkNavigation(){
+    if(!navActive||!currentPosition||!routeData)return;
+    if(offRoute()>100){if(++offCount>=3&&!rerouting&&dest){rerouting=true;offCount=0;setMessage('Off route. Rerouting…');findRoute(true);return}}else offCount=0;
+    const all=steps();let closest=-1,best=Infinity;
+    for(let i=Math.max(0,stepIndex-1);i<Math.min(all.length,stepIndex+6);i++){
+      const loc=all[i].maneuver?.location;if(!loc)continue;
+      const d=distMeters(currentPosition.lat,currentPosition.lon,loc[1],loc[0]);
+      if(d<best){best=d;closest=i}
+    }
+    if(closest>=stepIndex&&best<75)stepIndex=closest;
+    updateStep();
+    const nx=all[stepIndex+1],loc=nx?.maneuver?.location;
+    if(loc){const d=distMeters(currentPosition.lat,currentPosition.lon,loc[1],loc[0]);
+      if(d<250&&lastSpoken!==stepIndex+1){lastSpoken=stepIndex+1;speak('In '+(Math.round(d/10)*10)+' meters, '+instruction(nx))}}
+  }
+  function enableGps(){
+    if(!window.isSecureContext){setMessage('Location needs a secure HTTPS website. Upload RoadX to an HTTPS host, then open it in Chrome.');return}
+    if(!navigator.geolocation){setMessage('Location is not supported by this browser. Open the HTTPS site in Chrome and try again.');return}
+    setMessage('Requesting location permission…');
+    navigator.geolocation.getCurrentPosition(pos=>{
+      currentPosition={lat:pos.coords.latitude,lon:pos.coords.longitude};
+      setGps(true);
+      if(!gpsMarker){
+        const el=document.createElement('div');
+        el.innerHTML=vehicleSvg();el.style.cssText='filter:drop-shadow(0 0 7px var(--glow))';
+        gpsMarker=new maplibregl.Marker({element:el,rotationAlignment:'map',pitchAlignment:'map'}).setLngLat([currentPosition.lon,currentPosition.lat]).setPopup(new maplibregl.Popup().setText('Your GPS location')).addTo(map);
+      }else gpsMarker.setLngLat([currentPosition.lon,currentPosition.lat]);
+      map.flyTo({center:[currentPosition.lon,currentPosition.lat],zoom:16,pitch:tiltOn?58:0,duration:900});
+      if(!watchId)watchId=navigator.geolocation.watchPosition(p=>{
+        currentPosition={lat:p.coords.latitude,lon:p.coords.longitude};
+        setGps(true);if(gpsMarker)gpsMarker.setLngLat([currentPosition.lon,currentPosition.lat]);
+        if(gpsMarker&&p.coords.speed>1&&typeof p.coords.heading==='number'&&p.coords.heading>=0)gpsMarker.setRotation(p.coords.heading);
+        const kmh=p.coords.speed>0?Math.round(p.coords.speed*3.6):0;$('speed').textContent=kmh;setSpeedo(kmh);updateLimit(kmh);
+        if(navActive){const o={center:[currentPosition.lon,currentPosition.lat],zoom:17,pitch:tiltOn?60:0,duration:900};if(p.coords.speed>1&&typeof p.coords.heading==='number'&&p.coords.heading>=0)o.bearing=p.coords.heading;map.easeTo(o)}
+        checkNavigation();
+      },()=>setGps(false),{enableHighAccuracy:true,maximumAge:3000,timeout:15000});
+      setMessage('GPS located. Enter a destination and find a route.');
+    },err=>{
+      setGps(false);
+      setMessage(err.code===1?'Location permission denied. Allow location in Chrome site settings.':err.code===3?'GPS timed out. Try again outdoors.':'Location unavailable. Try again or enter a start place.');
+    },{enableHighAccuracy:true,timeout:15000,maximumAge:5000});
+  }
+  function toggleTilt(){
+    tiltOn=!tiltOn;
+    map.easeTo({pitch:tiltOn?58:0,bearing:tiltOn?-18:0,duration:650});
+    $('tiltBtn').textContent='▱ 3D tilt: '+(tiltOn?'on':'off');
+    $('modeLabel').textContent=tiltOn?'3D VIEW • TILT ON':'2D VIEW • TILT OFF';
+  }
+  $('routeBtn').addEventListener('click',()=>findRoute());
+  $('nbStop').addEventListener('click',()=>$('navBtn').click());
+  $('nbVoice').addEventListener('click',()=>{$('voiceBtn').click();$('nbVoice').textContent=/: on/i.test($('voiceBtn').textContent)?'🔊':'🔇'});
+  $('nbEdit').addEventListener('click',()=>{document.body.classList.remove('navmode');panelEl.classList.remove('nav');setCompact(false)});
+  $('panelToggle').addEventListener('click',()=>setCompact(!panelEl.classList.contains('compact')));
+  $('alts').addEventListener('click',e=>{const b=e.target.closest('button');if(b)selectRoute(+b.dataset.i)});
+  $('destination').addEventListener('keydown',e=>{if(e.key==='Enter')findRoute()});
+  $('start').addEventListener('keydown',e=>{if(e.key==='Enter')findRoute()});
+  $('searchBtn').addEventListener('click',async()=>{
+    const q=$('destination').value.trim();if(!q){setMessage('Type a place to search.');return}
+    setMessage('Searching map…');
+    try{const p=await geocode(q);map.flyTo({center:[p.lon,p.lat],zoom:16,pitch:tiltOn?58:0});setMessage('Found: '+p.name)}
+    catch(e){setMessage(e.message)}
+  });
+  $('gpsBtn').addEventListener('click',enableGps);
+  $('locateBtn').addEventListener('click',enableGps);
+  $('clearBtn').addEventListener('click',()=>{removeRoute();keepAwake(false);panelEl.classList.remove('compact','hasroute','nav');document.body.classList.remove('navmode');goHome();setMessage('Route cleared. Search for a destination.')});
+  $('tiltBtn').addEventListener('click',toggleTilt);
+  $('pitchBtn').addEventListener('click',toggleTilt);
+  $('zoomIn').addEventListener('click',()=>map.zoomIn());
+  $('zoomOut').addEventListener('click',()=>map.zoomOut());
+  $('recenterBtn').addEventListener('click',()=>{
+    if(routeData)map.fitBounds(routeData.geometry.coordinates.reduce((b,c)=>[[Math.min(b[0][0],c[0]),Math.min(b[0][1],c[1])],[Math.max(b[1][0],c[0]),Math.max(b[1][1],c[1])]],[[Infinity,Infinity],[-Infinity,-Infinity]]),{padding:{top:250,bottom:90,left:35,right:35},maxZoom:16,duration:800});
+    else if(currentPosition)map.flyTo({center:[currentPosition.lon,currentPosition.lat],zoom:16,pitch:tiltOn?58:0});
+  });
+  $('voiceBtn').addEventListener('click',()=>{
+    voiceOn=!voiceOn;$('voiceBtn').textContent=voiceOn?'🔊 Voice: on':'🔊 Voice: off';
+    if(!voiceOn&&'speechSynthesis'in window)speechSynthesis.cancel();
+    if(voiceOn)speak('Voice guidance enabled.');
+  });
+  $('navBtn').addEventListener('click',()=>{
+    if(!routeData){setMessage('Find a route first.');return}
+    if(!currentPosition){setMessage('Enable GPS before starting guidance.');return}
+    navActive=!navActive;$('navBtn').textContent=navActive?'Ⅱ Pause guidance':'▶ Start guidance';
+    setMessage(navActive?'Guidance started. Use a safe phone mount and follow road signs.':'Guidance paused.');
+    keepAwake(navActive);panelEl.classList.toggle('nav',navActive);document.body.classList.toggle('navmode',navActive);if(navActive)setCompact(true);if(navActive){updateStep();speak(instruction(steps()[stepIndex]))}
+    else if('speechSynthesis'in window)speechSynthesis.cancel();
+  });
+  const HK='roadx_places';let settingPlace=null;
+  function places(){try{return JSON.parse(localStorage.getItem(HK))||{}}catch(e){return{}}}
+  function setPlace(k,v){try{const pl=places();pl[k]=v;localStorage.setItem(HK,JSON.stringify(pl))}catch(e){}renderDock()}
+  const CK='roadx_car',CSK='roadx_car_skip';let carType='car';
   function car(){try{return JSON.parse(localStorage.getItem(CK))||null}catch(e){return null}}
   function carName(c){return [c.brand,c.model].filter(Boolean).join(' ')}
   function vehicleSvg(){const c=car();return c&&c.type==='moto'?BIKE:CAR}
@@ -99,20 +653,59 @@ rep("function renderDock(){","""const CK='roadx_car',CSK='roadx_car_skip';let ca
     avoidToll=$('avoidToll').checked;try{localStorage.setItem('roadx_avoid',avoidToll?'1':'0')}catch(e){}
     if(routeData&&$('destination').value.trim())findRoute();
   });
-  function renderDock(){""")
-rep("$('chips2').innerHTML='<button class=\"sc\" data-k=\"home\">","const cv=car();\n    $('chips2').innerHTML='<button class=\"sc\" data-car=\"1\">'+(cv&&cv.type==='moto'?'🏍 ':'🚗 ')+escapeHtml(cv&&carName(cv)?carName(cv):'Add your car')+'</button><button class=\"sc\" data-k=\"home\">")
-rep("if(b.dataset.k)goPlace(b.dataset.k);","if(b.dataset.car)openCar();else if(b.dataset.k)goPlace(b.dataset.k);")
-rep("setGps(false);fillRecents();renderDock();refreshTheme();","""try{avoidToll=localStorage.getItem('roadx_avoid')==='1'}catch(e){}
+  function renderDock(){
+    const pl=places(),rc=recents().filter(r=>r.lat!=null).slice(0,2);
+    const cv=car();
+    $('chips2').innerHTML='<button class="sc" data-car="1">'+(cv&&cv.type==='moto'?'🏍 ':'🚗 ')+escapeHtml(cv&&carName(cv)?carName(cv):'Add your car')+'</button><button class="sc" data-k="home">🏠 '+(pl.home?'Home':'Set Home')+'</button><button class="sc" data-k="work">💼 '+(pl.work?'Work':'Set Work')+'</button>'+
+      rc.map((r,i)=>'<button class="sc" data-r="'+i+'">🕘 '+escapeHtml(r.t.split(',')[0])+'</button>').join('');
+  }
+  function openSearch(msg){
+    document.body.classList.remove('home');panelEl.classList.add('simple');setCompact(false);
+    setMessage(msg||'Type a place, then tap a suggestion.');$('startToggle').textContent='From: my location ✎';
+    setTimeout(()=>$('destination').focus(),50);
+  }
+  function goHome(){document.body.classList.add('home');settingPlace=null;hideSug();$('destination').value='';delete picked.destination;renderDock()}
+  function goTo(t,lat,lon){openSearch();$('destination').value=t;picked.destination={text:t,lat:lat,lon:lon};findRoute()}
+  function goPlace(k){
+    const pl=places()[k];
+    if(!pl){settingPlace=k;openSearch('Search your '+(k==='home'?'Home':'Work')+' address, then tap it in the list.');return}
+    goTo(pl.t,pl.lat,pl.lon);
+  }
+  let lp=null,lpDone=false;const ch=$('chips2');
+  ch.addEventListener('pointerdown',e=>{lpDone=false;const b=e.target.closest('button[data-k]');if(!b)return;lp=setTimeout(()=>{lpDone=true;settingPlace=b.dataset.k;openSearch('Search your new '+(b.dataset.k==='home'?'Home':'Work')+' address, then tap it in the list.')},650)});
+  ['pointerup','pointerleave','pointercancel'].forEach(t=>ch.addEventListener(t,()=>clearTimeout(lp)));
+  ch.addEventListener('contextmenu',e=>e.preventDefault());
+  ch.addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b||lpDone)return;
+    if(b.dataset.car)openCar();else if(b.dataset.k)goPlace(b.dataset.k);
+    else{const r=recents().filter(x=>x.lat!=null)[+b.dataset.r];if(r)goTo(r.t,r.lat,r.lon)}
+  });
+  $('whereBtn').addEventListener('click',()=>openSearch());
+  $('startToggle').addEventListener('click',()=>{panelEl.classList.toggle('simple');$('startToggle').textContent=panelEl.classList.contains('simple')?'From: my location ✎':'✓ Hide start point'});
+  function refreshTheme(){
+    const cc=map.getCenter(),o=currentPosition?{lat:currentPosition.lat,lon:currentPosition.lon}:{lat:cc.lat,lon:cc.lng},t=wantTheme(o.lat,o.lon);
+    $('themeBtn').textContent=themeMode==='auto'?'🌓':themeMode==='light'?'☀️':'🌙';
+    if(t===curTheme)return;
+    curTheme=t;document.documentElement.dataset.theme=t;
+    document.querySelector('meta[name="theme-color"]').setAttribute('content',t==='dark'?'#070c14':'#f2f6fa');
+    map.setStyle(STYLE[t],{diff:false});
+    map.once('style.load',()=>{add3DBuildings();if(alts.length)drawRoutes()});
+  }
+  $('themeBtn').addEventListener('click',()=>{themeMode=themeMode==='auto'?'light':themeMode==='light'?'dark':'auto';try{localStorage.setItem(THEME_KEY,themeMode)}catch(e){}refreshTheme()});
+  setInterval(refreshTheme,60000);
+  try{avoidToll=localStorage.getItem('roadx_avoid')==='1'}catch(e){}
   $('avoidToll').checked=avoidToll;
   setGps(false);fillRecents();renderDock();refreshTheme();
-  setTimeout(()=>{let sk=null;try{sk=localStorage.getItem(CSK)}catch(e){}if(!car()&&!sk)openCar()},700);""")
-# fuel row in trip options
-rep("'<div class=\"tr\"><span>💰 Toll</span>","(function(){const cv=car();if(!cv||!cv.lper||!cv.price)return'';const L=km/1000*cv.lper/100;return'<div class=\"tr\"><span>⛽ Fuel'+(carName(cv)?' · '+escapeHtml(carName(cv)):'')+'</span><span><b>about RM '+(L*cv.price).toFixed(2)+'</b><small>'+L.toFixed(1)+' L</small></span></div>'})()+\n      '<div class=\"tr\"><span>💰 Toll</span>")
-open(p,'w',encoding='utf-8').write(s)
-EOF
-python3 /tmp/patch12.py && python3 - <<'EOF'
-import re,subprocess
-s=open('/mnt/user-data/outputs/index.html',encoding='utf-8').read()
-open('/tmp/a.js','w').write(re.findall(r'<script>(.*?)</script>',s,re.S)[0])
-print(subprocess.run(['node','--check','/tmp/a.js'],capture_output=True,text=True))
-EOF
+  setTimeout(()=>{let sk=null;try{sk=localStorage.getItem(CSK)}catch(e){}if(!car()&&!sk)openCar()},700);
+  // Installable Android PWA: install prompt is shown only when the browser allows it.
+  let installPrompt=null;
+  const installBtn=$('installBtn');
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;installBtn.style.display='block'});
+  installBtn.addEventListener('click',async()=>{if(!installPrompt){setMessage('In Chrome, open ⋮ menu and choose Add to Home screen or Install app.');return}installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;installBtn.style.display='none'});
+  window.addEventListener('appinstalled',()=>{installBtn.style.display='none';setMessage('RoadX Maps installed. Open it from your home screen.')});
+  if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  if(!window.isSecureContext) setMessage('Tip: GPS works reliably on an HTTPS-hosted website. Upload this project to a secure host.');
+})();
+</script>
+</body>
+</html>
