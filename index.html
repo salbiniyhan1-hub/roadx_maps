@@ -53,6 +53,12 @@ button:disabled{opacity:.55}
 .panel.nav{padding:8px}.panel.nav #routeInfo .stats,.panel.nav #alts{display:none}
 .speedo{position:absolute;z-index:2;left:11px;bottom:58px;width:78px;height:78px;border-radius:50%;display:none;flex-direction:column;align-items:center;justify-content:center;background:#0d1a2bee;border:4px solid #35e7ff;box-shadow:0 0 18px #35e7ff55,0 4px 14px #0008;pointer-events:none;transition:border-color .3s}
 .speedo.on{display:flex}.speedo b{font-size:28px;line-height:1;color:#f3f8ff}.speedo small{font-size:10px;color:var(--muted);letter-spacing:.6px;margin-top:2px}
+.turn{display:flex;align-items:center;gap:12px;margin:8px 0;padding:10px 12px;background:#0b3b4a;border:1px solid #35e7ff66;border-radius:12px}
+.tarrow{font-size:44px;line-height:1;color:var(--cyan);width:50px;text-align:center;flex:none}
+.tmain{min-width:0}.tmain b{display:block;font-size:30px;line-height:1.05;color:#fff}.tmain span{display:block;font-size:14px;line-height:1.3;color:#dcecff;margin-top:3px}
+.eta{display:flex;gap:7px;margin-bottom:8px}.eta div{flex:1;text-align:center;background:#0d1a2b;border:1px solid #27465f;border-radius:10px;padding:7px 4px}
+.eta b{display:block;font-size:18px;color:var(--green)}.eta small{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.panel.compact #routeInfo .stats{display:none}.panel.nav .tmain b{font-size:36px}
 @media(min-width:760px){.panel{width:380px;right:auto;top:14px;left:14px}.mode{right:14px;top:14px}.fabstack{right:14px;bottom:28px}}
 </style>
 </head>
@@ -88,7 +94,8 @@ button:disabled{opacity:.55}
         <div class="stat"><strong id="speed">0</strong><small>km/h</small></div>
       </div>
       <div class="alts" id="alts"></div>
-      <div id="nextStep">Route ready. Follow road signs.</div>
+      <div class="turn" id="turnCard"><div class="tarrow" id="tArrow">↑</div><div class="tmain"><b id="tDist">—</b><span id="tText">Route ready. Follow road signs.</span></div></div>
+      <div class="eta"><div><b id="etaMin">—</b><small>Time left</small></div><div><b id="etaKm">—</b><small>km left</small></div><div><b id="etaClock">—</b><small>Arrive</small></div></div>
       <div class="actions">
         <button id="voiceBtn">🔊 Voice: off</button>
         <button class="primary" id="navBtn">▶ Start guidance</button>
@@ -257,17 +264,25 @@ button:disabled{opacity:.55}
   async function suggest(inp){
     const q=inp.value.trim();
     if(q.length<2){showRecent(inp);return}
-    const seq=++sugSeq,c=map.getCenter();
+    const seq=++sugSeq,c=map.getCenter(),o=currentPosition?{lat:currentPosition.lat,lon:currentPosition.lon}:{lat:c.lat,lon:c.lng};
+    const base='https://photon.komoot.io/api/?lang=en&limit=20&lat='+o.lat+'&lon='+o.lon+'&q='+encodeURIComponent(q);
+    const box='&bbox='+[o.lon-1.5,o.lat-1.5,o.lon+1.5,o.lat+1.5].join(',');
     try{
-      const res=await fetch('https://photon.komoot.io/api/?lang=en&limit=6&lat='+c.lat+'&lon='+c.lng+'&q='+encodeURIComponent(q));
-      if(!res.ok||seq!==sugSeq)return;
-      const j=await res.json();if(seq!==sugSeq)return;
-      showSug(inp,(j.features||[]).map(f=>{
-        const p=f.properties,co=f.geometry.coordinates;
+      let feats=[];
+      for(const extra of [box,'']){
+        const res=await fetch(base+extra);
+        if(seq!==sugSeq)return;
+        if(!res.ok)continue;
+        feats=(await res.json()).features||[];
+        if(seq!==sugSeq)return;
+        if(feats.length)break;
+      }
+      showSug(inp,feats.map(f=>{
+        const p=f.properties,co=f.geometry.coordinates,d=distMeters(o.lat,o.lon,co[1],co[0]);
         const title=p.name||[p.housenumber,p.street].filter(Boolean).join(' ')||p.city||'Place';
-        const sub=[p.name&&p.street?p.street:'',p.district,p.city,p.state,p.country].filter(x=>x&&x!==title).join(', ');
-        return{title,sub,lat:co[1],lon:co[0],full:title+(sub?', '+sub:'')};
-      }));
+        const sub=[p.name&&p.street?p.street:'',p.district,p.city,p.state].filter(x=>x&&x!==title).join(', ');
+        return{title,sub:fmtDist(d)+(sub?' · '+sub:''),d,lat:co[1],lon:co[0],full:title+(sub?', '+sub:'')};
+      }).sort((a,b)=>a.d-b.d).slice(0,6));
     }catch(e){}
   }
   ['start','destination'].forEach(id=>{
@@ -325,14 +340,27 @@ button:disabled{opacity:.55}
     };
     return (phrase[type]||'Continue '+mod)+street+'.';
   }
+  function arrowFor(s){
+    const t=s.maneuver?.type,m=s.maneuver?.modifier||'';
+    if(t==='arrive')return'⚑';
+    if(t==='roundabout'||t==='rotary')return'⟳';
+    return({left:'↰',right:'↱','slight left':'↖','slight right':'↗','sharp left':'↙','sharp right':'↘',uturn:'↶'})[m]||'↑';
+  }
+  function turnDist(m){return m>=1000?(m/1000).toFixed(1)+' km':Math.max(10,Math.round(m/10)*10)+' m'}
   function updateStep(){
-    const all=steps();if(!all.length){$('nextStep').textContent='Follow the highlighted route and road signs.';return}
+    const all=steps();
+    if(!all.length){$('tDist').textContent='—';$('tText').textContent='Follow the highlighted route and road signs.';return}
     stepIndex=Math.min(stepIndex,all.length-1);
-    const nx=all[stepIndex+1]||all[stepIndex],loc=nx.maneuver?.location;
+    const nx=all[stepIndex+1]||all[stepIndex],loc=nx.maneuver?.location,last=!all[stepIndex+1];
     let d=all[stepIndex].distance;
     if(navActive&&currentPosition&&loc)d=distMeters(currentPosition.lat,currentPosition.lon,loc[1],loc[0]);
-    const rem=all.slice(stepIndex).reduce((t,x)=>t+x.distance,0);
-    $('nextStep').textContent=(all[stepIndex+1]?'In '+fmtDist(d)+': ':'')+instruction(nx)+'  ·  '+fmtDist(rem)+' left, about '+fmtTime(routeData.duration*rem/routeData.distance);
+    const rem=all.slice(stepIndex).reduce((t,x)=>t+x.distance,0),sec=routeData.duration*rem/routeData.distance;
+    $('tArrow').textContent=arrowFor(nx);
+    $('tDist').textContent=last?'Arrive':turnDist(d);
+    $('tText').textContent=instruction(nx);
+    $('etaMin').textContent=fmtTime(sec);
+    $('etaKm').textContent=(rem/1000).toFixed(1);
+    $('etaClock').textContent=new Date(Date.now()+sec*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
   }
   function speak(text){
     if(!voiceOn||!('speechSynthesis'in window))return;
