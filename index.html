@@ -238,6 +238,7 @@ button:disabled{opacity:.55}
   }
   const panelEl=document.querySelector('.panel');
   function setCompact(on){panelEl.classList.toggle('compact',on);$('panelToggle').textContent=on?'⌕ Edit route or search':'▾ Hide panel'}
+  const CAR='<svg viewBox="0 0 40 64" width="30" height="48" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="4" width="28" height="56" rx="12" fill="#35e7ff" stroke="#f3fbff" stroke-width="3"/><rect x="11" y="16" width="18" height="12" rx="4" fill="#07101d"/><rect x="11" y="38" width="18" height="10" rx="4" fill="#07101d"/><rect x="9" y="6" width="6" height="4" rx="2" fill="#fff6b0"/><rect x="25" y="6" width="6" height="4" rx="2" fill="#fff6b0"/></svg>';
   const picked={};let sugTimer=null,sugInput=null,sugSeq=0;
   function hideSug(){$('sug').style.display='none'}
   function showSug(inp,items){
@@ -293,7 +294,7 @@ button:disabled{opacity:.55}
       const wasNav=navActive;
       removeRoute();
       dest=b;alts=json.routes;selIdx=0;
-      startMarker=addPointMarker(a,'START · '+(a.name||'Start'),'#69ffb1');
+      startMarker=a.name==='Your GPS location'?null:addPointMarker(a,'START · '+(a.name||'Start'),'#69ffb1');
       endMarker=addPointMarker(b,'DESTINATION · '+(b.name||destText),'#35e7ff');
       drawRoutes();stepIndex=0;showInfo();panelEl.classList.add('hasroute');setCompact(true);
       if(re){if(wasNav){navActive=true;$('navBtn').textContent='Ⅱ Pause guidance';speak('Rerouting.')}setMessage('Rerouted from your position.')}
@@ -370,13 +371,14 @@ button:disabled{opacity:.55}
       setGps(true);
       if(!gpsMarker){
         const el=document.createElement('div');
-        el.style.cssText='width:19px;height:19px;border-radius:50%;background:#69ffb1;border:4px solid #f5ffff;box-shadow:0 0 0 8px #69ffb133,0 0 20px #69ffb1';
-        gpsMarker=new maplibregl.Marker({element:el}).setLngLat([currentPosition.lon,currentPosition.lat]).setPopup(new maplibregl.Popup().setText('Your GPS location')).addTo(map);
+        el.innerHTML=CAR;el.style.cssText='filter:drop-shadow(0 0 8px #35e7ff)';
+        gpsMarker=new maplibregl.Marker({element:el,rotationAlignment:'map',pitchAlignment:'map'}).setLngLat([currentPosition.lon,currentPosition.lat]).setPopup(new maplibregl.Popup().setText('Your GPS location')).addTo(map);
       }else gpsMarker.setLngLat([currentPosition.lon,currentPosition.lat]);
       map.flyTo({center:[currentPosition.lon,currentPosition.lat],zoom:16,pitch:tiltOn?58:0,duration:900});
       if(!watchId)watchId=navigator.geolocation.watchPosition(p=>{
         currentPosition={lat:p.coords.latitude,lon:p.coords.longitude};
         setGps(true);if(gpsMarker)gpsMarker.setLngLat([currentPosition.lon,currentPosition.lat]);
+        if(gpsMarker&&p.coords.speed>1&&typeof p.coords.heading==='number'&&p.coords.heading>=0)gpsMarker.setRotation(p.coords.heading);
         $('speed').textContent=p.coords.speed>0?Math.round(p.coords.speed*3.6):0;
         if(navActive){const o={center:[currentPosition.lon,currentPosition.lat],zoom:17,pitch:tiltOn?60:0,duration:900};if(p.coords.speed>1&&typeof p.coords.heading==='number'&&p.coords.heading>=0)o.bearing=p.coords.heading;map.easeTo(o)}
         checkNavigation();
