@@ -1,82 +1,449 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ROADX MAPS 3D</title>
-  
-  <!-- Leaflet CSS & JS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
-    body, html { width: 100%; height: 100%; overflow: hidden; background: #121212; }
-    
-    #map {
-      width: 100vw;
-      height: 100vh;
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 1;
-    }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#070c14">
+<meta name="description" content="RoadX Maps 3D — dark futuristic map, GPS location and driving routes.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>RoadX Maps 3D — Dark Edition</title>
+<link href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+:root {
+  --bg: #070c14;
+  --panel: rgba(8, 15, 27, .94);
+  --cyan: #35e7ff;
+  --green: #69ffb1;
+  --muted: #a3b6cb;
+  --border: #263950;
+  --text: #f3f8ff;
+  --sub: #8ea8c3;
+  --card: #0d192b;
+  --cardA: rgba(13, 25, 43, 0.9);
+  --card2: #142236;
+  --field: #142236;
+  --fieldb: #2b4058;
+  --btn: #17283d;
+  --btnb: #2b4158;
+  --btntext: #edfaff;
+  --line: #1e3148;
+  --ink: #070c14;
+  --turnbg: #0b3b4a;
+  --turnb: #35e7ff77;
+  --navtopbg: #0b3b4af2;
+  --navbotbg: #08141ff2;
+  --shadow: rgba(0, 0, 0, 0.4);
+  --topbar: #08111e;
+  --mapbg: #101b2b;
+  --note: #07101ddd;
+  --car: #35e7ff;
+  --glow: #35e7ff;
+  --good: #69ffb1;
+  --goodb: #1f5e3d;
+  --warn: #ffcc70;
+  --warnb: #87632a;
+  --iconf: invert(1);
+  color-scheme: dark;
+}
 
-    .header-bar {
-      position: absolute;
-      top: 15px;
-      left: 15px;
-      right: 15px;
-      z-index: 10;
-      background: rgba(20, 20, 20, 0.85);
-      backdrop-filter: blur(10px);
-      padding: 12px 20px;
-      border-radius: 12px;
-      color: #fff;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border: 1px solid rgba(255,255,255,0.1);
-      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-    }
+:root[data-theme="light"] {
+  --bg: #eef2f6;
+  --panel: rgba(255, 255, 255, .97);
+  --cyan: #0b72e8;
+  --green: #0f8a4f;
+  --muted: #5c7185;
+  --border: #d3dde8;
+  --text: #10202f;
+  --sub: #2a4157;
+  --card: #ffffff;
+  --cardA: #ffffffee;
+  --card2: #f3f7fb;
+  --field: #f1f5f9;
+  --fieldb: #cbd6e2;
+  --btn: #eef3f8;
+  --btnb: #cbd6e2;
+  --btntext: #13273a;
+  --line: #e3eaf1;
+  --ink: #ffffff;
+  --turnbg: #e7f1ff;
+  --turnb: #0b72e855;
+  --navtopbg: #fffffff7;
+  --navbotbg: #fffffff7;
+  --shadow: #1b2d4222;
+  --topbar: linear-gradient(100deg, #ffffff, #e9f0f8);
+  --mapbg: #e8edf2;
+  --note: #ffffffdd;
+  --car: #0b72e8;
+  --glow: #0b72e888;
+  --good: #0f8a4f;
+  --goodb: #8fd1ae;
+  --warn: #b86e00;
+  --warnb: #e3b86b;
+  --iconf: none;
+  color-scheme: light;
+}
 
-    .header-bar h1 { font-size: 1.2rem; letter-spacing: 1px; }
-    .header-bar h1 span { color: #00e5ff; }
-  </style>
+* { box-sizing: border-box; }
+html, body { height: 100%; width: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+button, input { font: inherit; }
+.app { height: 100dvh; display: flex; flex-direction: column; width: 100%; }
+.topbar { height: 50px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; background: var(--topbar); border-bottom: 1px solid var(--border); z-index: 5; }
+.brand { font-size: 17px; font-weight: 900; letter-spacing: 1.2px; }
+.brand span { color: var(--cyan); }
+.pill { font-size: 10px; color: var(--green); border: 1px solid var(--goodb); padding: 5px 8px; border-radius: 30px; letter-spacing: .5px; }
+.main { position: relative; flex: 1; min-height: 0; width: 100%; height: 100%; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; background: var(--mapbg); }
+.panel { position: absolute; z-index: 3; top: 10px; left: 10px; right: 10px; padding: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 8px 28px var(--shadow); backdrop-filter: blur(12px); }
+.row { display: flex; gap: 7px; margin-bottom: 7px; }
+input { min-width: 0; width: 100%; padding: 13px 12px; color: var(--text); background: var(--field); border: 1px solid var(--fieldb); border-radius: 12px; outline: none; }
+input:focus { border-color: var(--cyan); }
+input::placeholder { color: var(--muted); }
+button { padding: 11px 12px; background: var(--btn); color: var(--btntext); border: 1px solid var(--btnb); border-radius: 12px; font-weight: 700; cursor: pointer; }
+button.primary { background: var(--cyan); color: var(--ink); border-color: var(--cyan); }
+button:disabled { opacity: .55; }
+.iconbtn { min-width: 44px; font-size: 19px; padding: 8px; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+#message { font-size: 12px; color: var(--muted); line-height: 1.4; padding: 8px 2px 0; min-height: 25px; }
+#routeInfo { display: none; margin-top: 8px; padding: 10px; background: var(--card2); border: 1px solid var(--border); border-radius: 11px; }
+.stats { display: flex; gap: 22px; }
+.stat strong { display: block; font-size: 19px; color: var(--green); }
+.stat small { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .7px; }
+.toggleRow { display: flex; gap: 7px; margin-top: 8px; }
+.toggleRow button { flex: 1; font-size: 12px; }
+.fabstack { position: absolute; z-index: 2; right: 11px; bottom: 22px; display: flex; flex-direction: column; gap: 8px; }
+.fab { width: 46px; height: 46px; border-radius: 14px; background: var(--card); border: 1px solid var(--border); font-size: 19px; box-shadow: 0 4px 14px var(--shadow); }
+.maplibregl-ctrl-group { background: var(--card) !important; border: 1px solid var(--border) !important; }
+.maplibregl-ctrl-group button { background-color: var(--card) !important; }
+.maplibregl-ctrl button .maplibregl-ctrl-icon { filter: var(--iconf); }
+.maplibregl-ctrl-attrib { font-size: 9px !important; background: var(--note) !important; color: var(--muted) !important; }
+.maplibregl-ctrl-attrib a { color: var(--cyan) !important; }
+.sug { position: absolute; left: 11px; right: 11px; z-index: 10; display: none; max-height: 240px; overflow: auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 28px var(--shadow); }
+.sug button { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; font-weight: 600; padding: 10px 12px; color: var(--text); }
+.sug small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; margin-top: 2px; }
+.alts { display: flex; gap: 6px; margin-top: 8px; }
+.alts button { flex: 1; font-size: 12px; padding: 8px 6px; }
+.alts button.on { background: var(--cyan); color: var(--ink); border-color: var(--cyan); }
+.handle { display: none; width: 100%; margin-bottom: 7px; font-size: 13px; padding: 9px; }
+.panel.hasroute .handle { display: block; }
+.panel.compact > .row, .panel.compact > .actions, .panel.compact > #message, .panel.compact > .toggleRow { display: none; }
+.panel.compact #routeInfo { margin-top: 0; }
+.panel.nav { padding: 8px; }
+.panel.nav #routeInfo .stats, .panel.nav #alts { display: none; }
+.speedo { position: absolute; z-index: 2; left: 11px; bottom: 58px; width: 78px; height: 78px; border-radius: 50%; display: none; flex-direction: column; align-items: center; justify-content: center; background: var(--cardA); border: 4px solid var(--cyan); box-shadow: 0 0 18px var(--glow), 0 4px 14px var(--shadow); pointer-events: none; transition: border-color .3s; }
+.speedo.on { display: flex; }
+.speedo b { font-size: 28px; line-height: 1; color: var(--text); }
+.speedo small { font-size: 10px; color: var(--muted); letter-spacing: .6px; margin-top: 2px; }
+.turn { display: flex; align-items: center; gap: 12px; margin: 8px 0; padding: 10px 12px; background: var(--turnbg); border: 1px solid var(--turnb); border-radius: 12px; }
+.tarrow { font-size: 44px; line-height: 1; color: var(--cyan); width: 50px; text-align: center; flex: none; }
+.tmain { min-width: 0; }
+.tmain b { display: block; font-size: 30px; line-height: 1.05; color: var(--text); }
+.tmain span { display: block; font-size: 14px; line-height: 1.3; color: var(--sub); margin-top: 3px; }
+.eta { display: flex; gap: 7px; margin-bottom: 8px; }
+.eta div { flex: 1; text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 7px 4px; }
+.eta b { display: block; font-size: 18px; color: var(--green); }
+.eta small { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+.navtop, .navbot { position: absolute; z-index: 4; left: 10px; right: 10px; display: none; align-items: center; gap: 10px; border-radius: 14px; box-shadow: 0 6px 18px var(--shadow); }
+.navtop { top: 10px; padding: 8px 12px; background: var(--navtopbg); border: 1px solid var(--turnb); }
+.ntarrow { font-size: 38px; line-height: 1; color: var(--cyan); width: 44px; text-align: center; flex: none; }
+.ntmain { min-width: 0; flex: 1; }
+.ntmain b { display: block; font-size: 30px; line-height: 1.05; color: var(--text); }
+.ntmain span { display: block; font-size: 13px; line-height: 1.25; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.navbot { bottom: 34px; padding: 7px 8px; gap: 6px; background: var(--navbotbg); border: 1px solid var(--border); }
+.nbstat { flex: 1; text-align: center; min-width: 0; }
+.nbstat b { display: block; font-size: 17px; color: var(--green); white-space: nowrap; }
+.nbstat small { font-size: 9px; color: var(--muted); text-transform: uppercase; }
+.navbot button { padding: 9px 11px; font-size: 15px; flex: none; }
+body.navmode .navtop, body.navmode .navbot { display: flex; }
+body.navmode .panel { display: none; }
+body.navmode .fabstack { bottom: 108px; }
+body.navmode .speedo { bottom: 108px; }
+.trip { margin: 0 0 8px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 12px; }
+.trip summary { cursor: pointer; line-height: 1.5; color: var(--sub); }
+.tr { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.tr:first-child { margin-top: 8px; }
+.tr b { color: var(--green); text-align: right; }
+.tr small { color: var(--muted); margin-left: 5px; }
+.trip a { color: var(--cyan); font-weight: 700; }
+.trip .note { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+.dock { position: absolute; z-index: 3; left: 10px; right: 10px; bottom: 30px; display: none; flex-direction: column; gap: 10px; }
+body.home .dock { display: flex; }
+body.home .panel { display: none; }
+body.home .fabstack, body.home .speedo { bottom: 150px; }
+.where { display: flex; align-items: center; gap: 10px; width: 100%; padding: 15px 18px; border-radius: 30px; background: var(--card); border: 1px solid var(--border); box-shadow: 0 8px 28px var(--shadow); font-size: 17px; font-weight: 700; color: var(--muted); text-align: left; }
+.chiprow { display: flex; gap: 8px; overflow-x: auto; padding: 2px 1px 4px; scrollbar-width: none; }
+.chiprow::-webkit-scrollbar { display: none; }
+.sc { flex: none; padding: 10px 15px; border-radius: 22px; background: var(--card); border: 1px solid var(--border); box-shadow: 0 4px 14px var(--shadow); font-size: 14px; color: var(--text); user-select: none; -webkit-user-select: none; }
+.linkbtn { display: none; background: none; border: 0; color: var(--cyan); padding: 2px 2px 6px; font-size: 12px; }
+.panel.simple .linkbtn { display: inline-block; }
+.panel.simple .startrow { display: none; }
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group { display: none; }
+@media(min-width:760px) {
+  .panel { width: 380px; right: auto; top: 14px; left: 14px; }
+  .fabstack { right: 14px; bottom: 28px; }
+}
+</style>
 </head>
-<body>
-
-  <div class="header-bar">
-    <h1>ROAD<span>X</span> MAPS 3D</h1>
-    <div id="status">● GPS READY</div>
+<body class="home">
+<div class="app">
+<header class="topbar">
+  <div class="brand">ROAD<span>X</span> MAPS <span style="font-size:11px;letter-spacing:1px">3D</span></div>
+  <div style="display:flex;align-items:center;gap:7px">
+    <button id="themeBtn" aria-label="Theme" style="padding:6px 9px;font-size:15px">🌓</button>
+    <button id="installBtn" style="display:none;padding:7px 9px;font-size:11px">＋ Install</button>
+    <div class="pill" id="gpsStatus">● GPS OFF</div>
   </div>
+</header>
+<main class="main">
+  <div id="map" aria-label="Interactive 3D map"></div>
+  <section class="panel">
+    <button class="handle" id="panelToggle">▾ Hide panel</button>
+    <div class="row startrow">
+      <input id="start" placeholder="Start: use current GPS" aria-label="Starting point">
+      <button class="iconbtn" id="gpsBtn" title="Use GPS">⌖</button>
+    </div>
+    <div class="row">
+      <input id="destination" placeholder="Where do you want to go?" aria-label="Destination" autocomplete="off">
+      <button class="iconbtn" id="searchBtn" title="Search destination">⌕</button>
+    </div>
+    <div class="actions">
+      <button class="primary" id="routeBtn">➤ Find route</button>
+      <button id="clearBtn">✕ Cancel</button>
+    </div>
+    <button class="linkbtn" id="startToggle">From: my location ✎</button>
+    <div class="sug" id="sug"></div>
+    <div id="message" role="status">3D map loading… Search for a destination or use GPS.</div>
+    <div id="routeInfo">
+      <div class="stats">
+        <div class="stat"><strong id="distance">—</strong><small>Distance</small></div>
+        <div class="stat"><strong id="duration">—</strong><small>Est. drive</small></div>
+        <div class="stat"><strong id="speed">0</strong><small>km/h</small></div>
+      </div>
+      <div class="alts" id="alts"></div>
+      <div class="turn" id="turnCard">
+        <div class="tarrow" id="tArrow">↑</div>
+        <div class="tmain"><b id="tDist">—</b><span id="tText">Route ready. Follow road signs.</span></div>
+      </div>
+      <div class="eta">
+        <div><b id="etaMin">—</b><small>Time left</small></div>
+        <div><b id="etaKm">—</b><small>km left</small></div>
+        <div><b id="etaClock">—</b><small>Arrive</small></div>
+      </div>
+      <details class="trip" id="trip"><summary id="tripSum">Travel options</summary><div id="tripBody"></div></details>
+      <div class="actions">
+        <button id="voiceBtn">🔊 Voice: off</button>
+        <button class="primary" id="navBtn">▶ Start guidance</button>
+      </div>
+    </div>
+    <div class="toggleRow">
+      <button id="tiltBtn">▱ 3D tilt: on</button>
+      <button id="recenterBtn">◎ Recenter route</button>
+    </div>
+  </section>
+  <div class="dock" id="dock">
+    <button class="where" id="whereBtn"><span>🔍</span> Where to?</button>
+    <div class="chiprow" id="chips2"></div>
+  </div>
+  <div class="fabstack">
+    <button class="fab" id="locateBtn" title="Locate me">⌖</button>
+    <button class="fab" id="pitchBtn" title="Toggle 3D view">🏙️</button>
+    <button class="fab" id="zoomIn" title="Zoom in">＋</button>
+    <button class="fab" id="zoomOut" title="Zoom out">−</button>
+  </div>
+  <div class="navtop" id="navTop">
+    <div class="ntarrow" id="ntArrow">↑</div>
+    <div class="ntmain"><b id="ntDist">—</b><span id="ntText"></span></div>
+  </div>
+  <div class="navbot" id="navBot">
+    <div class="nbstat"><b id="nbMin">—</b><small>Left</small></div>
+    <div class="nbstat"><b id="nbKm">—</b><small>km</small></div>
+    <div class="nbstat"><b id="nbClock">—</b><small>Arrive</small></div>
+    <button id="nbVoice" aria-label="Voice">🔇</button>
+    <button id="nbEdit" aria-label="Search or edit route">⌕</button>
+    <button class="primary" id="nbStop">■ Stop</button>
+  </div>
+  <div class="speedo" id="speedo" aria-label="Current speed"><b id="speedBig">0</b><small>km/h</small></div>
+</main>
+</div>
+<script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const setMessage = msg => $('message').textContent = msg;
+  const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const THEME_KEY = 'roadx_theme';
+  let themeMode = 'auto'; try { themeMode = localStorage.getItem(THEME_KEY) || 'auto'; } catch(e){}
+  
+  const STYLE = {
+    dark: 'https://tiles.openfreemap.org/styles/dark',
+    light: 'https://tiles.openfreemap.org/styles/bright'
+  };
+  let curTheme = themeMode === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = curTheme;
 
-  <div id="map"></div>
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: STYLE[curTheme],
+    center: [101.445, 3.044],
+    zoom: 14,
+    pitch: 58,
+    bearing: -18,
+    maxPitch: 75,
+    attributionControl: true
+  });
 
-  <script>
-    // Initialize map centered at a default location
-    const map = L.map('map').setView([3.1390, 101.6869], 13); // Default: Malaysia (KL)
+  map.addControl(new maplibregl.NavigationControl({showCompass: true, visualizePitch: true}), 'bottom-right');
+  map.addControl(new maplibregl.ScaleControl({maxWidth: 100, unit: 'metric'}), 'bottom-left');
 
-    // Load guaranteed CartoDB Voyager tiles (No API key needed)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap & CartoDB'
-    }).addTo(map);
+  let currentPosition = null, gpsMarker = null, routeLayerId = 'roadx-route', routeSourceId = 'roadx-route-source';
+  let startMarker = null, endMarker = null, routeData = null, navActive = false, voiceOn = false, stepIndex = 0, watchId = null, lastSpoken = -1, tiltOn = true;
+  let styleReady = false;
 
-    // Fix map rendering sizing
-    window.addEventListener('load', () => {
-      setTimeout(() => map.invalidateSize(), 300);
-    });
+  window.addEventListener('resize', () => map.resize());
+  
+  map.on('load', () => {
+    styleReady = true;
+    map.resize();
+    add3DBuildings();
+    setMessage('3D map ready. Search a destination or tap ⌖ for GPS.');
+  });
 
-    // Try live location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(position => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        map.setView([lat, lng], 15);
-        L.marker([lat, lng]).addTo(map).bindPopup('You are here').openPopup();
+  map.on('error', e => {
+    if(!styleReady) setMessage('Map style loading error. Please check your network connection.');
+  });
+
+  function setGps(on) {
+    $('speedo').classList.toggle('on', on);
+    $('gpsStatus').textContent = on ? '● GPS READY' : '● GPS OFF';
+    $('gpsStatus').style.color = on ? 'var(--good)' : 'var(--warn)';
+    $('gpsStatus').style.borderColor = on ? 'var(--goodb)' : 'var(--warnb)';
+  }
+
+  function fmtDist(m) { return m >= 1000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m) + ' m'; }
+  function fmtTime(s) { const m = Math.round(s / 60); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min'; }
+
+  function add3DBuildings() {
+    const style = map.getStyle();
+    if (!style || !style.layers || map.getLayer('roadx-3d-buildings')) return;
+    const candidates = style.layers.filter(l => l.type === 'fill' && (l['source-layer'] === 'building' || /building/i.test(l.id)));
+    if (!candidates.length) return;
+    try {
+      map.addLayer({
+        id: 'roadx-3d-buildings',
+        type: 'fill-extrusion',
+        source: candidates[0].source,
+        'source-layer': candidates[0]['source-layer'],
+        minzoom: 13,
+        paint: {
+          'fill-extrusion-color': curTheme === 'light' ? '#cbd6e2' : '#1d4563',
+          'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 12],
+          'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+          'fill-extrusion-opacity': 0.85
+        }
       });
+    } catch(err) {}
+  }
+
+  async function geocode(query) {
+    const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(query));
+    if (!res.ok) throw new Error('Search request failed.');
+    const data = await res.json();
+    if (data.length) return { lat: Number(data[0].lat), lon: Number(data[0].lon), name: data[0].display_name };
+    throw new Error('Place not found. Try another query.');
+  }
+
+  function getStart() {
+    const text = $('start').value.trim();
+    if (!text || /current gps|current location|my location/i.test(text)) {
+      if (currentPosition) return Promise.resolve({ lat: currentPosition.lat, lon: currentPosition.lon, name: 'Your GPS location' });
+      throw new Error('Enable GPS first or enter a start location.');
     }
-  </script>
+    return geocode(text);
+  }
+
+  let alts = [], selIdx = 0, dest = null;
+
+  function drawRoutes() {
+    const fc = { type: 'FeatureCollection', features: alts.map((r, i) => ({ type: 'Feature', properties: { sel: i === selIdx }, geometry: r.geometry })) };
+    if (map.getSource(routeSourceId)) {
+      map.getSource(routeSourceId).setData(fc);
+      return;
+    }
+    map.addSource(routeSourceId, { type: 'geojson', data: fc });
+    map.addLayer({
+      id: routeLayerId,
+      type: 'line',
+      source: routeSourceId,
+      paint: {
+        'line-color': ['case', ['get', 'sel'], curTheme === 'light' ? '#0b72e8' : '#35e7ff', '#5b7893'],
+        'line-width': ['case', ['get', 'sel'], 7, 4],
+        'line-opacity': 0.9
+      }
+    });
+  }
+
+  function showInfo() {
+    routeData = alts[selIdx];
+    $('distance').textContent = fmtDist(routeData.distance);
+    $('duration').textContent = fmtTime(routeData.duration);
+    $('routeInfo').style.display = 'block';
+  }
+
+  function removeRoute() {
+    if (map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
+    if (map.getSource(routeSourceId)) map.removeSource(routeSourceId);
+    routeData = null; alts = []; navActive = false;
+    $('routeInfo').style.display = 'none';
+  }
+
+  async function findRoute() {
+    const destText = $('destination').value.trim();
+    if (!destText) { setMessage('Please enter a destination.'); return; }
+    setMessage('Calculating route…');
+    try {
+      const [a, b] = await Promise.all([getStart(), geocode(destText)]);
+      const url = `https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=true`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!json.routes || !json.routes.length) throw new Error('Route not found.');
+      removeRoute();
+      dest = b; alts = json.routes; selIdx = 0;
+      drawRoutes();
+      showInfo();
+      document.body.classList.remove('home');
+      map.fitBounds([[Math.min(a.lon, b.lon), Math.min(a.lat, b.lat)], [Math.max(a.lon, b.lon), Math.max(a.lat, b.lat)]], { padding: 80 });
+      setMessage('Route ready.');
+    } catch(e) {
+      setMessage(e.message || 'Error finding route.');
+    }
+  }
+
+  function enableGps() {
+    if (!navigator.geolocation) { setMessage('GPS is not supported on this browser.'); return; }
+    setMessage('Locating…');
+    navigator.geolocation.getCurrentPosition(pos => {
+      currentPosition = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      setGps(true);
+      map.flyTo({ center: [currentPosition.lon, currentPosition.lat], zoom: 15 });
+      setMessage('GPS localized.');
+    }, () => {
+      setGps(false);
+      setMessage('Unable to acquire GPS location.');
+    }, { enableHighAccuracy: true });
+  }
+
+  $('routeBtn').addEventListener('click', findRoute);
+  $('gpsBtn').addEventListener('click', enableGps);
+  $('locateBtn').addEventListener('click', enableGps);
+  $('destination').addEventListener('keydown', e => { if (e.key === 'Enter') findRoute(); });
+  $('clearBtn').addEventListener('click', () => { removeRoute(); document.body.classList.add('home'); setMessage('Route cleared.'); });
+  $('tiltBtn').addEventListener('click', () => { tiltOn = !tiltOn; map.easeTo({ pitch: tiltOn ? 58 : 0 }); });
+  $('pitchBtn').addEventListener('click', () => { tiltOn = !tiltOn; map.easeTo({ pitch: tiltOn ? 58 : 0 }); });
+  $('zoomIn').addEventListener('click', () => map.zoomIn());
+  $('zoomOut').addEventListener('click', () => map.zoomOut());
+  $('whereBtn').addEventListener('click', () => { document.body.classList.remove('home'); $('destination').focus(); });
+})();
+</script>
 </body>
 </html>
