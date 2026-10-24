@@ -59,6 +59,17 @@ button:disabled{opacity:.55}
 .eta{display:flex;gap:7px;margin-bottom:8px}.eta div{flex:1;text-align:center;background:#0d1a2b;border:1px solid #27465f;border-radius:10px;padding:7px 4px}
 .eta b{display:block;font-size:18px;color:var(--green)}.eta small{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
 .panel.compact #routeInfo .stats{display:none}.panel.nav .tmain b{font-size:36px}
+.navtop,.navbot{position:absolute;z-index:4;left:10px;right:10px;display:none;align-items:center;gap:10px;border-radius:14px;box-shadow:0 6px 18px #0009}
+.navtop{top:10px;padding:8px 12px;background:#0b3b4af2;border:1px solid #35e7ff99}
+.ntarrow{font-size:38px;line-height:1;color:var(--cyan);width:44px;text-align:center;flex:none}
+.ntmain{min-width:0;flex:1}.ntmain b{display:block;font-size:30px;line-height:1.05;color:#fff}.ntmain span{display:block;font-size:13px;line-height:1.25;color:#dcecff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.navbot{bottom:34px;padding:7px 8px;gap:6px;background:#08141ff2;border:1px solid #27465f}
+.nbstat{flex:1;text-align:center;min-width:0}.nbstat b{display:block;font-size:17px;color:var(--green);white-space:nowrap}.nbstat small{font-size:9px;color:var(--muted);text-transform:uppercase}
+.navbot button{padding:9px 11px;font-size:15px;flex:none}
+body.navmode .navtop,body.navmode .navbot{display:flex}
+body.navmode .panel,body.navmode .mapnote,body.navmode .mode{display:none}
+body.navmode .fabstack{bottom:108px}body.navmode .speedo{bottom:108px}
+.panel.compact:not(.nav) .turn{display:none}
 @media(min-width:760px){.panel{width:380px;right:auto;top:14px;left:14px}.mode{right:14px;top:14px}.fabstack{right:14px;bottom:28px}}
 </style>
 </head>
@@ -112,6 +123,8 @@ button:disabled{opacity:.55}
     <button class="fab" id="zoomIn" title="Zoom in">＋</button>
     <button class="fab" id="zoomOut" title="Zoom out">−</button>
   </div>
+  <div class="navtop" id="navTop"><div class="ntarrow" id="ntArrow">↑</div><div class="ntmain"><b id="ntDist">—</b><span id="ntText"></span></div></div>
+  <div class="navbot" id="navBot"><div class="nbstat"><b id="nbMin">—</b><small>Left</small></div><div class="nbstat"><b id="nbKm">—</b><small>km</small></div><div class="nbstat"><b id="nbClock">—</b><small>Arrive</small></div><button id="nbVoice" aria-label="Voice">🔇</button><button id="nbEdit" aria-label="Search or edit route">⌕</button><button class="primary" id="nbStop">■ Stop</button></div>
   <div class="speedo" id="speedo" aria-label="Current speed"><b id="speedBig">0</b><small>km/h</small></div>
   <div class="mapnote">ROADX 3D • Building coverage varies by area • Drive safely</div>
 </main>
@@ -360,7 +373,10 @@ button:disabled{opacity:.55}
     $('tText').textContent=instruction(nx);
     $('etaMin').textContent=fmtTime(sec);
     $('etaKm').textContent=(rem/1000).toFixed(1);
-    $('etaClock').textContent=new Date(Date.now()+sec*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    const clk=new Date(Date.now()+sec*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    $('etaClock').textContent=clk;
+    $('ntArrow').textContent=$('tArrow').textContent;$('ntDist').textContent=$('tDist').textContent;$('ntText').textContent=$('tText').textContent;
+    $('nbMin').textContent=$('etaMin').textContent;$('nbKm').textContent=$('etaKm').textContent;$('nbClock').textContent=clk;
   }
   function speak(text){
     if(!voiceOn||!('speechSynthesis'in window))return;
@@ -429,6 +445,9 @@ button:disabled{opacity:.55}
     $('modeLabel').textContent=tiltOn?'3D VIEW • TILT ON':'2D VIEW • TILT OFF';
   }
   $('routeBtn').addEventListener('click',()=>findRoute());
+  $('nbStop').addEventListener('click',()=>$('navBtn').click());
+  $('nbVoice').addEventListener('click',()=>{$('voiceBtn').click();$('nbVoice').textContent=/: on/i.test($('voiceBtn').textContent)?'🔊':'🔇'});
+  $('nbEdit').addEventListener('click',()=>{document.body.classList.remove('navmode');panelEl.classList.remove('nav');setCompact(false)});
   $('panelToggle').addEventListener('click',()=>setCompact(!panelEl.classList.contains('compact')));
   $('alts').addEventListener('click',e=>{const b=e.target.closest('button');if(b)selectRoute(+b.dataset.i)});
   $('destination').addEventListener('keydown',e=>{if(e.key==='Enter')findRoute()});
@@ -441,7 +460,7 @@ button:disabled{opacity:.55}
   });
   $('gpsBtn').addEventListener('click',enableGps);
   $('locateBtn').addEventListener('click',enableGps);
-  $('clearBtn').addEventListener('click',()=>{removeRoute();keepAwake(false);panelEl.classList.remove('compact','hasroute','nav');setMessage('Route cleared. Search for a destination.')});
+  $('clearBtn').addEventListener('click',()=>{removeRoute();keepAwake(false);panelEl.classList.remove('compact','hasroute','nav');document.body.classList.remove('navmode');setMessage('Route cleared. Search for a destination.')});
   $('tiltBtn').addEventListener('click',toggleTilt);
   $('pitchBtn').addEventListener('click',toggleTilt);
   $('zoomIn').addEventListener('click',()=>map.zoomIn());
@@ -460,7 +479,7 @@ button:disabled{opacity:.55}
     if(!currentPosition){setMessage('Enable GPS before starting guidance.');return}
     navActive=!navActive;$('navBtn').textContent=navActive?'Ⅱ Pause guidance':'▶ Start guidance';
     setMessage(navActive?'Guidance started. Use a safe phone mount and follow road signs.':'Guidance paused.');
-    keepAwake(navActive);panelEl.classList.toggle('nav',navActive);if(navActive)setCompact(true);if(navActive){updateStep();speak(instruction(steps()[stepIndex]))}
+    keepAwake(navActive);panelEl.classList.toggle('nav',navActive);document.body.classList.toggle('navmode',navActive);if(navActive)setCompact(true);if(navActive){updateStep();speak(instruction(steps()[stepIndex]))}
     else if('speechSynthesis'in window)speechSynthesis.cancel();
   });
   setGps(false);fillRecents();
