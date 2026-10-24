@@ -1,709 +1,82 @@
-```html
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ROADX MAPS 3D - Interactive GPS Navigation</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ROADX MAPS 3D</title>
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background: #121212; }
+    
+    #map {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
 
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        cyber: {
-                            blue: '#00f0ff',
-                            green: '#00ff66',
-                            pink: '#ff0055',
-                            yellow: '#ffe600',
-                            dark: '#0a0d14',
-                            panel: 'rgba(15, 23, 42, 0.75)',
-                            panelLight: 'rgba(255, 255, 255, 0.85)'
-                        }
-                    },
-                    boxShadow: {
-                        'neon-cyan': '0 0 15px rgba(0, 240, 255, 0.4)',
-                        'neon-green': '0 0 15px rgba(0, 255, 102, 0.4)',
-                        'neon-pink': '0 0 15px rgba(255, 0, 85, 0.4)'
-                    }
-                }
-            }
-        }
-    </script>
+    .header-bar {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      right: 15px;
+      z-index: 10;
+      background: rgba(20, 20, 20, 0.85);
+      backdrop-filter: blur(10px);
+      padding: 12px 20px;
+      border-radius: 12px;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
 
-    <!-- Leaflet CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
-
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        body {
-            font-family: 'Rajdhani', sans-serif;
-            overflow: hidden;
-            user-select: none;
-        }
-
-        .font-orbitron {
-            font-family: 'Orbitron', sans-serif;
-        }
-
-        /* Glassmorphism visual elements */
-        .glass-panel {
-            background: rgba(10, 15, 28, 0.78);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(0, 240, 255, 0.2);
-        }
-
-        .light .glass-panel {
-            background: rgba(255, 255, 255, 0.85);
-            border: 1px solid rgba(15, 23, 42, 0.15);
-            color: #0f172a;
-        }
-
-        /* Map Container and Perspective transformations */
-        #map-wrapper {
-            perspective: 1000px;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-
-        #map {
-            width: 100%;
-            height: 100%;
-            transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
-            transform-origin: center bottom;
-        }
-
-        /* 3D Tilt View Effect */
-        .tilt-active #map {
-            transform: rotateX(48deg) scale(1.15) translateY(-60px);
-        }
-
-        /* Dark mode custom Leaflet tile styling */
-        .dark .leaflet-tile-pane {
-            filter: brightness(0.7) invert(1) contrast(1.3) hue-rotate(200deg) saturate(0.4);
-        }
-
-        .leaflet-control-container .leaflet-routing-container-hide {
-            display: none !important;
-        }
-
-        /* Custom scrollbars */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.2);
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(0, 240, 255, 0.5);
-            border-radius: 3px;
-        }
-
-        /* Animated Pulsing GPS Marker */
-        .user-marker-icon {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .user-marker-inner {
-            width: 22px;
-            height: 22px;
-            background: #00f0ff;
-            border: 3px solid #ffffff;
-            border-radius: 50%;
-            box-shadow: 0 0 15px #00f0ff;
-            position: relative;
-        }
-        .user-marker-inner::after {
-            content: '';
-            position: absolute;
-            top: -10px;
-            left: -10px;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border: 2px solid #00f0ff;
-            animation: pulse-ring 1.8s infinite ease-out;
-        }
-
-        @keyframes pulse-ring {
-            0% { transform: scale(0.5); opacity: 1; }
-            100% { transform: scale(1.8); opacity: 0; }
-        }
-
-        /* Dynamic Vehicle Marker */
-        .car-marker-container {
-            transition: transform 0.2s linear;
-        }
-    </style>
+    .header-bar h1 { font-size: 1.2rem; letter-spacing: 1px; }
+    .header-bar h1 span { color: #00e5ff; }
+  </style>
 </head>
-<body class="bg-cyber-dark text-white h-screen w-screen relative overflow-hidden select-none">
-
-    <!-- MAP CONTAINER WITH TILT WRAPPER -->
-    <div id="map-wrapper" class="tilt-active">
-        <div id="map"></div>
-    </div>
-
-    <!-- HUD OVERLAY HEADER / STATUS BAR -->
-    <header class="absolute top-0 left-0 right-0 z-30 p-3 sm:p-4 flex justify-between items-center pointer-events-none">
-        <!-- Logo & Title -->
-        <div class="glass-panel rounded-2xl px-4 py-2 flex items-center gap-3 pointer-events-auto shadow-neon-cyan transition-all">
-            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg">
-                <i class="fa-solid fa-location-arrow text-xl transform -rotate-45"></i>
-            </div>
-            <div>
-                <h1 class="font-orbitron font-extrabold text-base sm:text-lg tracking-wider bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
-                    ROADX <span class="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 ml-1">3D</span>
-                </h1>
-                <p class="text-[10px] text-gray-400 tracking-widest font-semibold uppercase">Tactical GPS Navigation</p>
-            </div>
-        </div>
-
-        <!-- Quick Controls Bar -->
-        <div class="glass-panel rounded-2xl px-3 py-2 flex items-center gap-2 sm:gap-4 pointer-events-auto">
-            <!-- GPS Status Toggle -->
-            <button id="gps-toggle-btn" class="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                <span id="gps-status-text" class="hidden sm:inline">GPS ACTIVE</span>
-                <i class="fa-solid fa-crosshairs"></i>
-            </button>
-
-            <!-- 3D / 2D Tilt Toggle -->
-            <button id="tilt-toggle-btn" class="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition" title="Toggle 3D View">
-                <i class="fa-solid fa-cube text-cyan-400"></i>
-                <span id="tilt-text" class="hidden sm:inline">3D TILT</span>
-            </button>
-
-            <!-- Dark / Light Theme -->
-            <button id="theme-toggle-btn" class="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-700/60 text-yellow-400 border border-slate-600/40 transition">
-                <i class="fa-solid fa-moon"></i>
-            </button>
-        </div>
-    </header>
-
-    <!-- FLOATING SEARCH BAR & AUTOCOMPLETE -->
-    <div class="absolute top-16 sm:top-20 left-1/2 -translate-x-1/2 z-30 w-[92%] sm:w-[480px]">
-        <div class="glass-panel rounded-2xl shadow-xl p-2 flex items-center gap-2 border border-cyan-500/30">
-            <i class="fa-solid fa-magnifying-glass text-cyan-400 ml-3"></i>
-            <input type="text" id="search-input" placeholder="Search destination (e.g., Kuala Lumpur, Tokyo)..." 
-                   class="w-full bg-transparent text-white placeholder-gray-400 focus:outline-none text-sm font-medium py-1">
-            <button id="clear-search" class="text-gray-400 hover:text-white px-2 hidden">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-        <!-- Search Results Dropdown -->
-        <div id="search-results" class="glass-panel rounded-2xl mt-2 hidden max-h-56 overflow-y-auto divide-y divide-gray-800/40 shadow-2xl"></div>
-    </div>
-
-    <!-- MAIN CONTROL PANEL (NAV PLANNER & DASHBOARD) -->
-    <div class="absolute bottom-4 left-4 right-4 sm:right-auto sm:w-96 z-30 flex flex-col gap-3 pointer-events-none">
-        
-        <!-- TURN BY TURN INSTRUCTION CARD (ACTIVE DURING NAV) -->
-        <div id="turn-card" class="glass-panel rounded-2xl p-4 hidden pointer-events-auto border-l-4 border-l-cyan-400 animate-pulse-subtle">
-            <div class="flex items-center gap-4">
-                <div id="turn-icon-box" class="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-400 text-2xl">
-                    <i class="fa-solid fa-arrow-up"></i>
-                </div>
-                <div class="flex-1">
-                    <span id="turn-distance" class="font-orbitron text-xl font-bold text-white">In 200m</span>
-                    <p id="turn-instruction" class="text-xs text-cyan-200 font-medium">Head north on Main Avenue</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- NAVIGATION ROUTE PLANNER CARD -->
-        <div class="glass-panel rounded-3xl p-4 sm:p-5 pointer-events-auto shadow-2xl transition-all">
-            <!-- Travel Mode Selector -->
-            <div class="flex justify-between items-center bg-slate-900/60 p-1.5 rounded-2xl mb-4 border border-slate-700/40">
-                <button class="mode-btn active flex-1 py-1.5 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition bg-cyan-500 text-slate-950 shadow-neon-cyan" data-mode="driving">
-                    <i class="fa-solid fa-car"></i> Drive
-                </button>
-                <button class="mode-btn flex-1 py-1.5 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition text-gray-400 hover:text-white" data-mode="cycling">
-                    <i class="fa-solid fa-bicycle"></i> Cycle
-                </button>
-                <button class="mode-btn flex-1 py-1.5 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition text-gray-400 hover:text-white" data-mode="walking">
-                    <i class="fa-solid fa-person-walking"></i> Walk
-                </button>
-            </div>
-
-            <!-- Route Inputs -->
-            <div class="space-y-2 relative mb-4">
-                <div class="flex items-center gap-2 bg-slate-800/40 px-3 py-2 rounded-xl border border-slate-700/30">
-                    <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-neon-cyan"></span>
-                    <input id="origin-input" type="text" value="Current GPS Location" readonly class="bg-transparent text-xs text-gray-300 w-full focus:outline-none font-semibold">
-                </div>
-                <div class="flex items-center gap-2 bg-slate-800/40 px-3 py-2 rounded-xl border border-slate-700/30">
-                    <span class="w-2.5 h-2.5 rounded-full bg-pink-500 shadow-neon-pink"></span>
-                    <input id="dest-input" type="text" placeholder="Select destination from search or map..." class="bg-transparent text-xs text-white w-full focus:outline-none font-semibold placeholder-gray-500">
-                </div>
-            </div>
-
-            <!-- Route Metrics Display -->
-            <div id="metrics-panel" class="grid grid-cols-3 gap-2 mb-4 hidden">
-                <div class="bg-slate-900/70 p-2 rounded-xl text-center border border-cyan-500/20">
-                    <span class="text-[10px] text-gray-400 uppercase font-bold block">Distance</span>
-                    <span id="metric-dist" class="font-orbitron text-sm text-cyan-400 font-bold">0.0 km</span>
-                </div>
-                <div class="bg-slate-900/70 p-2 rounded-xl text-center border border-cyan-500/20">
-                    <span class="text-[10px] text-gray-400 uppercase font-bold block">ETA</span>
-                    <span id="metric-eta" class="font-orbitron text-sm text-emerald-400 font-bold">--:--</span>
-                </div>
-                <div class="bg-slate-900/70 p-2 rounded-xl text-center border border-cyan-500/20">
-                    <span class="text-[10px] text-gray-400 uppercase font-bold block">Duration</span>
-                    <span id="metric-time" class="font-orbitron text-sm text-yellow-400 font-bold">0 mins</span>
-                </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="flex items-center gap-2">
-                <button id="start-nav-btn" class="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-orbitron font-extrabold text-xs tracking-wider rounded-2xl shadow-neon-cyan transition transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <i class="fa-solid fa-play mr-1"></i> START SIMULATION
-                </button>
-                <button id="steps-toggle-btn" class="p-3 bg-slate-800/80 hover:bg-slate-700 rounded-2xl text-cyan-400 border border-slate-600/40 hidden">
-                    <i class="fa-solid fa-list-ul"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- SPEEDOMETER & HUD WIDGET (TOP RIGHT / BOTTOM RIGHT) -->
-    <div class="absolute bottom-4 right-4 z-30 hidden sm:flex flex-col gap-3 items-end pointer-events-none">
-        
-        <!-- Live Speedometer Card -->
-        <div class="glass-panel rounded-3xl p-4 flex flex-col items-center justify-center w-32 h-32 pointer-events-auto border-2 border-cyan-500/30 shadow-neon-cyan">
-            <span class="text-[10px] font-bold text-gray-400 tracking-widest uppercase">SPEED</span>
-            <div id="speedometer-val" class="font-orbitron text-3xl font-extrabold text-cyan-400 my-1">0</div>
-            <span class="text-[10px] font-semibold text-cyan-300">KM/H</span>
-        </div>
-
-        <!-- HUD Quick Metrics & Settings -->
-        <div class="glass-panel rounded-2xl p-3 flex items-center gap-3 pointer-events-auto text-xs">
-            <!-- Traffic Status Indicator -->
-            <div class="flex items-center gap-1.5 text-emerald-400 font-semibold" title="Traffic Density">
-                <i class="fa-solid fa-car-side"></i>
-                <span class="text-[11px]">Clear</span>
-            </div>
-            <div class="w-px h-4 bg-gray-700"></div>
-            <!-- Voice Audio Guidance Toggle -->
-            <button id="voice-toggle-btn" class="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1">
-                <i id="voice-icon" class="fa-solid fa-volume-high"></i>
-                <span class="text-[11px]">Voice</span>
-            </button>
-            <div class="w-px h-4 bg-gray-700"></div>
-            <!-- Speed Limit Sign Indicator -->
-            <div class="w-6 h-6 rounded-full border-2 border-red-500 bg-white text-black font-bold flex items-center justify-center text-[10px]" title="Speed Limit">
-                80
-            </div>
-        </div>
-    </div>
-
-    <!-- TURN STEP-BY-STEP DRAWER MODAL -->
-    <div id="steps-drawer" class="fixed inset-y-0 right-0 z-40 w-full sm:w-80 glass-panel shadow-2xl translate-x-full transition-transform duration-300 ease-in-out p-5 flex flex-col">
-        <div class="flex justify-between items-center pb-4 border-b border-gray-700">
-            <h3 class="font-orbitron text-sm font-bold text-cyan-400 flex items-center gap-2">
-                <i class="fa-solid fa-route"></i> Turn Instructions
-            </h3>
-            <button id="close-steps-btn" class="text-gray-400 hover:text-white">
-                <i class="fa-solid fa-xmark text-lg"></i>
-            </button>
-        </div>
-        <div id="steps-list" class="flex-1 overflow-y-auto my-4 space-y-3 pr-1 text-xs">
-            <p class="text-gray-400 text-center py-8">No active route selected.</p>
-        </div>
-    </div>
-
-    <!-- JAVASCRIPT LOGIC -->
-    <script>
-        // Preset Destinations for instant query selection
-        const PRESET_LOCATIONS = [
-            { name: "Kuala Lumpur City Centre", lat: 3.1579, lng: 101.7116, desc: "Capital City Landmark" },
-            { name: "Shah Alam City Centre", lat: 3.0738, lng: 101.5183, desc: "Selangor Hub" },
-            { name: "Penang Island (Georgetown)", lat: 5.4164, lng: 100.3327, desc: "Heritage City" },
-            { name: "Singapore Marina Bay", lat: 1.2868, lng: 103.8545, desc: "Urban District" },
-            { name: "Tokyo Shibuya Crossing", lat: 35.6595, lng: 139.7004, desc: "Tokyo City" },
-            { name: "London Piccadilly Circus", lat: 51.5101, lng: -0.1342, desc: "UK Hub" }
-        ];
-
-        // Application State
-        let map, userMarker, vehicleMarker, routePolyline;
-        let currentPos = [3.1579, 101.7116]; // Default KL coordinates
-        let destPos = null;
-        let is3DTilt = true;
-        let isNavigating = false;
-        let simulationInterval = null;
-        let voiceGuidance = true;
-        let travelMode = 'driving';
-
-        // Initialize Map & Application
-        window.onload = function() {
-            initMap();
-            setupEventListeners();
-            setupSpeech();
-        };
-
-        function initMap() {
-            // Leaflet Map Initialization
-            map = L.map('map', {
-                center: currentPos,
-                zoom: 16,
-                zoomControl: false
-            });
-
-            // Modern Dark CartoDB Tile Layer
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap &copy; CARTO',
-                maxZoom: 19
-            }).addTo(map);
-
-            // Add Custom Controls Position
-            L.control.zoom({ position: 'topright' }).addTo(map);
-
-            // User GPS Pulsing Marker
-            const userIcon = L.divIcon({
-                className: 'user-marker-icon',
-                html: '<div class="user-marker-inner"></div>',
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
-            });
-
-            userMarker = L.marker(currentPos, { icon: userIcon }).addTo(map)
-                .bindPopup("<b>Current Location</b>").openPopup();
-
-            // Map Click Event to set Destination
-            map.on('click', function(e) {
-                if (isNavigating) return;
-                setDestination(e.latlng.lat, e.latlng.lng, `Custom Point (${e.latlng.lat.toFixed(3)}, ${e.latlng.lng.toFixed(3)})`);
-            });
-        }
-
-        function setupEventListeners() {
-            // 3D Tilt Toggle
-            document.getElementById('tilt-toggle-btn').addEventListener('click', function() {
-                is3DTilt = !is3DTilt;
-                const wrapper = document.getElementById('map-wrapper');
-                const text = document.getElementById('tilt-text');
-                if (is3DTilt) {
-                    wrapper.classList.add('tilt-active');
-                    text.innerText = "3D TILT";
-                } else {
-                    wrapper.classList.remove('tilt-active');
-                    text.innerText = "2D FLAT";
-                }
-            });
-
-            // Theme Toggle
-            document.getElementById('theme-toggle-btn').addEventListener('click', function() {
-                document.documentElement.classList.toggle('dark');
-            });
-
-            // Search Autocomplete
-            const searchInput = document.getElementById('search-input');
-            const searchResults = document.getElementById('search-results');
-            const clearBtn = document.getElementById('clear-search');
-
-            searchInput.addEventListener('input', function(e) {
-                const query = e.target.value.toLowerCase().trim();
-                if (query.length > 0) {
-                    clearBtn.classList.remove('hidden');
-                    const filtered = PRESET_LOCATIONS.filter(item => item.name.toLowerCase().includes(query));
-                    renderSearchResults(filtered);
-                } else {
-                    clearBtn.classList.add('hidden');
-                    searchResults.classList.add('hidden');
-                }
-            });
-
-            clearBtn.addEventListener('click', () => {
-                searchInput.value = '';
-                clearBtn.classList.add('hidden');
-                searchResults.classList.add('hidden');
-            });
-
-            // Mode Selector
-            document.querySelectorAll('.mode-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('.mode-btn').forEach(b => {
-                        b.classList.remove('bg-cyan-500', 'text-slate-950', 'shadow-neon-cyan');
-                        b.classList.add('text-gray-400');
-                    });
-                    this.classList.add('bg-cyan-500', 'text-slate-950', 'shadow-neon-cyan');
-                    this.classList.remove('text-gray-400');
-                    travelMode = this.dataset.mode;
-                    if (destPos) calculateRoute();
-                });
-            });
-
-            // Navigation Simulation Trigger
-            document.getElementById('start-nav-btn').addEventListener('click', toggleNavigation);
-
-            // Steps Drawer Toggle
-            document.getElementById('steps-toggle-btn').addEventListener('click', () => {
-                document.getElementById('steps-drawer').classList.remove('translate-x-full');
-            });
-            document.getElementById('close-steps-btn').addEventListener('click', () => {
-                document.getElementById('steps-drawer').classList.add('translate-x-full');
-            });
-
-            // Voice Guidance Toggle
-            document.getElementById('voice-toggle-btn').addEventListener('click', function() {
-                voiceGuidance = !voiceGuidance;
-                const icon = document.getElementById('voice-icon');
-                icon.className = voiceGuidance ? "fa-solid fa-volume-high" : "fa-solid fa-volume-xmark text-gray-500";
-            });
-
-            // GPS Simulation Switch
-            document.getElementById('gps-toggle-btn').addEventListener('click', function() {
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(pos => {
-                        currentPos = [pos.coords.latitude, pos.coords.longitude];
-                        userMarker.setLatLng(currentPos);
-                        map.flyTo(currentPos, 16);
-                        speakAlert("GPS location synchronized.");
-                    }, () => {
-                        alert("Geolocation request denied or unavailable. Using default location.");
-                    });
-                }
-            });
-        }
-
-        function renderSearchResults(results) {
-            const container = document.getElementById('search-results');
-            container.innerHTML = '';
-            if (results.length === 0) {
-                container.innerHTML = `<div class="p-3 text-xs text-gray-400 text-center">No locations found. Click anywhere on map to set route.</div>`;
-            } else {
-                results.forEach(loc => {
-                    const item = document.createElement('div');
-                    item.className = 'p-3 hover:bg-cyan-500/10 cursor-pointer flex items-center gap-3 transition';
-                    item.innerHTML = `
-                        <i class="fa-solid fa-location-dot text-cyan-400"></i>
-                        <div>
-                            <div class="text-xs font-bold text-white">${loc.name}</div>
-                            <div class="text-[10px] text-gray-400">${loc.desc}</div>
-                        </div>
-                    `;
-                    item.addEventListener('click', () => {
-                        setDestination(loc.lat, loc.lng, loc.name);
-                        container.classList.add('hidden');
-                        document.getElementById('search-input').value = loc.name;
-                    });
-                    container.appendChild(item);
-                });
-            }
-            container.classList.remove('hidden');
-        }
-
-        function setDestination(lat, lng, name) {
-            destPos = [lat, lng];
-            document.getElementById('dest-input').value = name;
-            calculateRoute();
-        }
-
-        function calculateRoute() {
-            if (!destPos) return;
-
-            // Remove existing route line
-            if (routePolyline) map.removeLayer(routePolyline);
-
-            // Interpolate realistic route waypoint path
-            const waypoints = generateSimulatedPath(currentPos, destPos);
-
-            // Render neon route polyline
-            routePolyline = L.polyline(waypoints, {
-                color: '#00f0ff',
-                weight: 6,
-                opacity: 0.9,
-                lineJoin: 'round'
-            }).addTo(map);
-
-            map.fitBounds(routePolyline.getBounds(), { padding: [50, 50] });
-
-            // Compute route distance & ETA metrics
-            const distanceKm = (getDistance(currentPos, destPos) / 1000).toFixed(1);
-            const speedKmH = travelMode === 'driving' ? 60 : (travelMode === 'cycling' ? 20 : 5);
-            const durationMins = Math.round((distanceKm / speedKmH) * 60);
-
-            document.getElementById('metric-dist').innerText = `${distanceKm} km`;
-            document.getElementById('metric-time').innerText = `${durationMins} mins`;
-            
-            const etaTime = new Date(Date.now() + durationMins * 60000);
-            document.getElementById('metric-eta').innerText = etaTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-            document.getElementById('metrics-panel').classList.remove('hidden');
-            document.getElementById('steps-toggle-btn').classList.remove('hidden');
-
-            buildTurnInstructions(waypoints);
-        }
-
-        // Generate dynamic path waypoints
-        function generateSimulatedPath(start, end) {
-            const points = [start];
-            const steps = 10;
-            for (let i = 1; i < steps; i++) {
-                const ratio = i / steps;
-                const lat = start[0] + (end[0] - start[0]) * ratio + (Math.sin(i) * 0.003);
-                const lng = start[1] + (end[1] - start[1]) * ratio + (Math.cos(i) * 0.003);
-                points.push([lat, lng]);
-            }
-            points.push(end);
-            return points;
-        }
-
-        function buildTurnInstructions(waypoints) {
-            const stepsList = document.getElementById('steps-list');
-            stepsList.innerHTML = '';
-            
-            const instructions = [
-                "Head straight on main boulevard",
-                "In 300m, turn right onto Cyber Avenue",
-                "At the roundabout, take the 2nd exit",
-                "Continue straight for 1.5 km",
-                "Turn left towards Destination Parkway",
-                "Arrive at destination on the right"
-            ];
-
-            instructions.forEach((inst, index) => {
-                const step = document.createElement('div');
-                step.className = 'bg-slate-900/60 p-2.5 rounded-xl border border-slate-800 flex items-center gap-3';
-                step.innerHTML = `
-                    <div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs">
-                        ${index + 1}
-                    </div>
-                    <div class="text-xs text-gray-200">${inst}</div>
-                `;
-                stepsList.appendChild(step);
-            });
-        }
-
-        function toggleNavigation() {
-            if (!destPos) {
-                alert("Please select a destination first!");
-                return;
-            }
-
-            const btn = document.getElementById('start-nav-btn');
-            const turnCard = document.getElementById('turn-card');
-
-            if (isNavigating) {
-                // Stop Navigation
-                isNavigating = false;
-                clearInterval(simulationInterval);
-                if (vehicleMarker) map.removeLayer(vehicleMarker);
-                btn.innerHTML = `<i class="fa-solid fa-play mr-1"></i> START SIMULATION`;
-                turnCard.classList.add('hidden');
-                document.getElementById('speedometer-val').innerText = '0';
-                speakAlert("Navigation stopped.");
-            } else {
-                // Start Navigation Simulation
-                isNavigating = true;
-                btn.innerHTML = `<i class="fa-solid fa-square mr-1"></i> STOP SIMULATION`;
-                turnCard.classList.remove('hidden');
-                
-                speakAlert("Starting navigation. Follow highlighted path.");
-                startDrivingSimulation();
-            }
-        }
-
-        function startDrivingSimulation() {
-            const waypoints = routePolyline.getLatLngs();
-            let index = 0;
-
-            // Vehicle Marker Icon
-            const carIcon = L.divIcon({
-                className: 'car-marker-container',
-                html: `<div class="w-8 h-8 rounded-full bg-slate-950 border-2 border-cyan-400 text-cyan-400 flex items-center justify-center shadow-neon-cyan transform -rotate-45">
-                        <i class="fa-solid fa-location-arrow text-base"></i>
-                       </div>`,
-                iconSize: [32, 32],
-                iconAnchor: [16, 16]
-            });
-
-            vehicleMarker = L.marker(waypoints[0], { icon: carIcon }).addTo(map);
-
-            simulationInterval = setInterval(() => {
-                if (index >= waypoints.length - 1) {
-                    clearInterval(simulationInterval);
-                    isNavigating = false;
-                    document.getElementById('start-nav-btn').innerHTML = `<i class="fa-solid fa-play mr-1"></i> START SIMULATION`;
-                    document.getElementById('turn-instruction').innerText = "You have arrived at your destination!";
-                    speakAlert("You have arrived at your destination!");
-                    return;
-                }
-
-                const current = waypoints[index];
-                const next = waypoints[index + 1];
-
-                vehicleMarker.setLatLng(next);
-                map.panTo(next, { animate: true, duration: 0.8 });
-
-                // Update animated speedometer
-                const simulatedSpeed = Math.floor(Math.random() * 15) + 55;
-                document.getElementById('speedometer-val').innerText = simulatedSpeed;
-
-                // Dynamic turn update prompts
-                if (index === 2) {
-                    updateTurnCard("In 150m, turn right onto Cyber Avenue", "fa-arrow-turn-down-right");
-                    speakAlert("In 150 meters, turn right.");
-                } else if (index === 5) {
-                    updateTurnCard("In 300m, keep left towards express lane", "fa-arrow-left");
-                    speakAlert("Keep left towards express lane.");
-                }
-
-                index++;
-            }, 1200);
-        }
-
-        function updateTurnCard(instruction, iconClass) {
-            document.getElementById('turn-instruction').innerText = instruction;
-            document.getElementById('turn-icon-box').innerHTML = `<i class="fa-solid ${iconClass}"></i>`;
-        }
-
-        // Distance formula between coordinates (Haversine)
-        function getDistance(coord1, coord2) {
-            const R = 6371e3;
-            const lat1 = coord1[0] * Math.PI / 180;
-            const lat2 = coord2[0] * Math.PI / 180;
-            const deltaLat = (coord2[0] - coord1[0]) * Math.PI / 180;
-            const deltaLng = (coord2[1] - coord1[1]) * Math.PI / 180;
-
-            const a = Math.sin(deltaLat/2) * Math.sin(deltaLat/2) +
-                      Math.cos(lat1) * Math.cos(lat2) *
-                      Math.sin(deltaLng/2) * Math.sin(deltaLng/2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        }
-
-        // Speech Synthesis Voice Alerts
-        function setupSpeech() {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.getVoices();
-            }
-        }
-
-        function speakAlert(text) {
-            if (!voiceGuidance || !('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-            window.speechSynthesis.speak(utterance);
-        }
-    </script>
+<body>
+
+  <div class="header-bar">
+    <h1>ROAD<span>X</span> MAPS 3D</h1>
+    <div id="status">● GPS READY</div>
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    // Initialize map centered at a default location
+    const map = L.map('map').setView([3.1390, 101.6869], 13); // Default: Malaysia (KL)
+
+    // Load guaranteed CartoDB Voyager tiles (No API key needed)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap & CartoDB'
+    }).addTo(map);
+
+    // Fix map rendering sizing
+    window.addEventListener('load', () => {
+      setTimeout(() => map.invalidateSize(), 300);
+    });
+
+    // Try live location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(position => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        map.setView([lat, lng], 15);
+        L.marker([lat, lng]).addTo(map).bindPopup('You are here').openPopup();
+      });
+    }
+  </script>
 </body>
 </html>
-```
