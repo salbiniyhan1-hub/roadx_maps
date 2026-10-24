@@ -46,6 +46,11 @@ button:disabled{opacity:.55}
 .maplibregl-ctrl-attrib a{color:var(--cyan)!important}
 .sug{position:absolute;left:11px;right:11px;z-index:10;display:none;max-height:240px;overflow:auto;background:#0d1a2b;border:1px solid #35516d;border-radius:12px;box-shadow:0 12px 28px #000a}.sug button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #1d3047;border-radius:0;background:transparent;font-weight:600;padding:10px 12px}.sug small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:2px}
 .alts{display:flex;gap:6px;margin-top:8px}.alts button{flex:1;font-size:12px;padding:8px 6px}.alts button.on{background:var(--cyan);color:#04131a;border-color:var(--cyan)}
+.handle{display:none;width:100%;margin-bottom:7px;font-size:13px;padding:9px}
+.panel.hasroute .handle{display:block}
+.panel.compact>.row,.panel.compact>.actions,.panel.compact>#message,.panel.compact>.toggleRow{display:none}
+.panel.compact #routeInfo{margin-top:0}
+.panel.nav{padding:8px}.panel.nav #routeInfo .stats,.panel.nav #alts{display:none}
 @media(min-width:760px){.panel{width:380px;right:auto;top:14px;left:14px}.mode{right:14px;top:14px}.fabstack{right:14px;bottom:28px}}
 </style>
 </head>
@@ -59,6 +64,7 @@ button:disabled{opacity:.55}
   <div id="map" aria-label="Interactive 3D map"></div>
   <div class="mode" id="modeLabel">3D VIEW • TILT ON</div>
   <section class="panel">
+    <button class="handle" id="panelToggle">▾ Hide panel</button>
     <div class="row">
       <input id="start" placeholder="Start: use current GPS" aria-label="Starting point">
       <button class="iconbtn" id="gpsBtn" title="Use GPS">⌖</button>
@@ -230,6 +236,8 @@ button:disabled{opacity:.55}
     $('navBtn').textContent='▶ Start guidance';
     if('speechSynthesis' in window) speechSynthesis.cancel();
   }
+  const panelEl=document.querySelector('.panel');
+  function setCompact(on){panelEl.classList.toggle('compact',on);$('panelToggle').textContent=on?'⌕ Edit route or search':'▾ Hide panel'}
   const picked={};let sugTimer=null,sugInput=null,sugSeq=0;
   function hideSug(){$('sug').style.display='none'}
   function showSug(inp,items){
@@ -287,7 +295,7 @@ button:disabled{opacity:.55}
       dest=b;alts=json.routes;selIdx=0;
       startMarker=addPointMarker(a,'START · '+(a.name||'Start'),'#69ffb1');
       endMarker=addPointMarker(b,'DESTINATION · '+(b.name||destText),'#35e7ff');
-      drawRoutes();stepIndex=0;showInfo();
+      drawRoutes();stepIndex=0;showInfo();panelEl.classList.add('hasroute');setCompact(true);
       if(re){if(wasNav){navActive=true;$('navBtn').textContent='Ⅱ Pause guidance';speak('Rerouting.')}setMessage('Rerouted from your position.')}
       else{
         saveRecent(destText);
@@ -386,6 +394,7 @@ button:disabled{opacity:.55}
     $('modeLabel').textContent=tiltOn?'3D VIEW • TILT ON':'2D VIEW • TILT OFF';
   }
   $('routeBtn').addEventListener('click',()=>findRoute());
+  $('panelToggle').addEventListener('click',()=>setCompact(!panelEl.classList.contains('compact')));
   $('alts').addEventListener('click',e=>{const b=e.target.closest('button');if(b)selectRoute(+b.dataset.i)});
   $('destination').addEventListener('keydown',e=>{if(e.key==='Enter')findRoute()});
   $('start').addEventListener('keydown',e=>{if(e.key==='Enter')findRoute()});
@@ -397,7 +406,7 @@ button:disabled{opacity:.55}
   });
   $('gpsBtn').addEventListener('click',enableGps);
   $('locateBtn').addEventListener('click',enableGps);
-  $('clearBtn').addEventListener('click',()=>{removeRoute();keepAwake(false);setMessage('Route cleared. Search for a destination.')});
+  $('clearBtn').addEventListener('click',()=>{removeRoute();keepAwake(false);panelEl.classList.remove('compact','hasroute','nav');setMessage('Route cleared. Search for a destination.')});
   $('tiltBtn').addEventListener('click',toggleTilt);
   $('pitchBtn').addEventListener('click',toggleTilt);
   $('zoomIn').addEventListener('click',()=>map.zoomIn());
@@ -416,7 +425,7 @@ button:disabled{opacity:.55}
     if(!currentPosition){setMessage('Enable GPS before starting guidance.');return}
     navActive=!navActive;$('navBtn').textContent=navActive?'Ⅱ Pause guidance':'▶ Start guidance';
     setMessage(navActive?'Guidance started. Use a safe phone mount and follow road signs.':'Guidance paused.');
-    keepAwake(navActive);if(navActive){updateStep();speak(instruction(steps()[stepIndex]))}
+    keepAwake(navActive);panelEl.classList.toggle('nav',navActive);if(navActive)setCompact(true);if(navActive){updateStep();speak(instruction(steps()[stepIndex]))}
     else if('speechSynthesis'in window)speechSynthesis.cancel();
   });
   setGps(false);fillRecents();
