@@ -70,6 +70,11 @@ body.navmode .navtop,body.navmode .navbot{display:flex}
 body.navmode .panel,body.navmode .mapnote,body.navmode .mode{display:none}
 body.navmode .fabstack{bottom:108px}body.navmode .speedo{bottom:108px}
 .panel.compact:not(.nav) .turn{display:none}
+.trip{margin:0 0 8px;background:#0d1a2b;border:1px solid #27465f;border-radius:10px;padding:8px 10px;font-size:12px}
+.trip summary{cursor:pointer;line-height:1.5;color:#dcecff}
+.tr{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:7px 0;border-top:1px solid #1d3047;font-size:13px}.tr:first-child{margin-top:8px}
+.tr b{color:var(--green);text-align:right}.tr small{color:var(--muted);margin-left:5px}.trip a{color:var(--cyan);font-weight:700}
+.trip .note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.4}
 @media(min-width:760px){.panel{width:380px;right:auto;top:14px;left:14px}.mode{right:14px;top:14px}.fabstack{right:14px;bottom:28px}}
 </style>
 </head>
@@ -107,6 +112,7 @@ body.navmode .fabstack{bottom:108px}body.navmode .speedo{bottom:108px}
       <div class="alts" id="alts"></div>
       <div class="turn" id="turnCard"><div class="tarrow" id="tArrow">↑</div><div class="tmain"><b id="tDist">—</b><span id="tText">Route ready. Follow road signs.</span></div></div>
       <div class="eta"><div><b id="etaMin">—</b><small>Time left</small></div><div><b id="etaKm">—</b><small>km left</small></div><div><b id="etaClock">—</b><small>Arrive</small></div></div>
+      <details class="trip" id="trip"><summary id="tripSum">Travel options</summary><div id="tripBody"></div></details>
       <div class="actions">
         <button id="voiceBtn">🔊 Voice: off</button>
         <button class="primary" id="navBtn">▶ Start guidance</button>
@@ -247,7 +253,7 @@ body.navmode .fabstack{bottom:108px}body.navmode .speedo{bottom:108px}
     routeData=alts[selIdx];
     $('distance').textContent=fmtDist(routeData.distance);$('duration').textContent=fmtTime(routeData.duration);
     $('alts').innerHTML=alts.length>1?alts.map((r,i)=>'<button class="'+(i===selIdx?'on':'')+'" data-i="'+i+'">'+fmtTime(r.duration)+' · '+fmtDist(r.distance)+'</button>').join(''):'';
-    $('routeInfo').style.display='block';updateStep();
+    $('routeInfo').style.display='block';updateStep();renderTrip();
   }
   function selectRoute(i){selIdx=i;stepIndex=0;lastSpoken=-1;drawRoutes();showInfo()}
   function removeRoute(){
@@ -259,6 +265,36 @@ body.navmode .fabstack{bottom:108px}body.navmode .speedo{bottom:108px}
     $('routeInfo').style.display='none';$('alts').innerHTML='';
     $('navBtn').textContent='▶ Start guidance';
     if('speechSynthesis' in window) speechSynthesis.cancel();
+  }
+  const TOLL_RM_PER_KM=0.18,TOLL_MIN_RM=1; // rough Malaysia expressway rate; edit to taste
+  let walkSec=null,walkM=null,tripA=null;
+  function tollInfo(r){
+    let m=0,has=false;
+    (r.legs||[]).forEach(l=>(l.steps||[]).forEach(st=>{const it=st.intersections||[];
+      it.forEach((x,i)=>{if((x.classes||[]).includes('toll')){has=true;const y=it[i+1];if(y)m+=distMeters(x.location[1],x.location[0],y.location[1],y.location[0])}})}));
+    return{has,km:m/1000};
+  }
+  async function fetchWalk(a,b){
+    try{
+      const r=await fetch('https://routing.openstreetmap.de/routed-foot/route/v1/driving/'+a.lon+','+a.lat+';'+b.lon+','+b.lat+'?overview=false');
+      const j=await r.json();
+      if(j.routes&&j.routes[0]){walkSec=j.routes[0].duration;walkM=j.routes[0].distance;renderTrip()}
+    }catch(e){}
+  }
+  function renderTrip(){
+    if(!routeData)return;
+    const car=routeData.duration,km=routeData.distance,moto=car*0.9;
+    const walk=walkSec!=null?walkSec:km/1.39,walkKm=walkM!=null?walkM:km;
+    const t=tollInfo(routeData),rm=t.has?Math.max(TOLL_MIN_RM,Math.round(t.km*TOLL_RM_PER_KM*10)/10):0;
+    $('tripSum').textContent='🚗 '+fmtTime(car)+' · 🏍 ≈'+fmtTime(moto)+' · 🚶 '+fmtTime(walk)+' · 💰 '+(t.has?'~RM '+rm.toFixed(0):'No toll');
+    const train=tripA&&dest?'https://www.google.com/maps/dir/?api=1&origin='+tripA.lat+','+tripA.lon+'&destination='+dest.lat+','+dest.lon+'&travelmode=transit':'';
+    $('tripBody').innerHTML=
+      '<div class="tr"><span>🚗 Car</span><span><b>'+fmtTime(car)+'</b><small>'+fmtDist(km)+'</small></span></div>'+
+      '<div class="tr"><span>🏍 Motorcycle</span><span><b>≈ '+fmtTime(moto)+'</b><small>estimate</small></span></div>'+
+      '<div class="tr"><span>🚶 Walk</span><span><b>'+fmtTime(walk)+'</b><small>'+fmtDist(walkKm)+'</small></span></div>'+
+      '<div class="tr"><span>🚆 Train</span><span>'+(train?'<a href="'+train+'" target="_blank" rel="noopener">See train times ↗</a>':'—')+'</span></div>'+
+      '<div class="tr"><span>💰 Toll</span><span><b>'+(t.has?'about RM '+rm.toFixed(2):'No toll roads')+'</b>'+(t.has?'<small>'+t.km.toFixed(1)+' km tolled</small>':'')+'</span></div>'+
+      '<div class="note">Toll is a rough estimate (RM '+TOLL_RM_PER_KM.toFixed(2)+' per km on toll roads, car). Real price depends on the plaza. Motorcycle time is estimated from the car route. Train times open in Google Maps.</div>';
   }
   const panelEl=document.querySelector('.panel');
   function setCompact(on){panelEl.classList.toggle('compact',on);$('panelToggle').textContent=on?'⌕ Edit route or search':'▾ Hide panel'}
@@ -326,10 +362,10 @@ body.navmode .fabstack{bottom:108px}body.navmode .speedo{bottom:108px}
       if(json.code!=='Ok'||!json.routes?.length) throw new Error('No driving route found for those locations.');
       const wasNav=navActive;
       removeRoute();
-      dest=b;alts=json.routes;selIdx=0;
+      dest=b;alts=json.routes;selIdx=0;tripA=a;walkSec=null;walkM=null;
       startMarker=a.name==='Your GPS location'?null:addPointMarker(a,'START · '+(a.name||'Start'),'#69ffb1');
       endMarker=addPointMarker(b,'DESTINATION · '+(b.name||destText),'#35e7ff');
-      drawRoutes();stepIndex=0;showInfo();panelEl.classList.add('hasroute');setCompact(true);
+      drawRoutes();stepIndex=0;showInfo();panelEl.classList.add('hasroute');setCompact(true);fetchWalk(a,b);
       if(re){if(wasNav){navActive=true;$('navBtn').textContent='Ⅱ Pause guidance';speak('Rerouting.')}setMessage('Rerouted from your position.')}
       else{
         saveRecent(destText);
