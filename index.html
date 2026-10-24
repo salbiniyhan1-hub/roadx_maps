@@ -87,6 +87,14 @@ body.home .fabstack,body.home .speedo{bottom:150px}
 .panel.simple .linkbtn{display:inline-block}.panel.compact>.linkbtn{display:none}
 .panel.simple .startrow{display:none}.panel.simple:not(.hasroute) .toggleRow{display:none}
 .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group{display:none}
+.avoid{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);padding:8px 2px 0}.avoid input{width:19px;height:19px;padding:0;accent-color:var(--cyan)}.panel.compact>.avoid{display:none}
+.limit{position:absolute;z-index:2;left:98px;bottom:58px;width:54px;height:54px;border-radius:50%;background:#fff;border:6px solid #e5484d;color:#111;font-weight:800;font-size:19px;display:none;align-items:center;justify-content:center;pointer-events:none}
+body.navmode .limit{bottom:112px}body.home .limit{bottom:150px}
+.sheet{position:fixed;inset:0;z-index:50;display:none;align-items:flex-end;justify-content:center;background:#0009;padding:10px}.sheet.on{display:flex}
+.sheetcard{width:100%;max-width:480px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:16px;display:grid;gap:10px;margin-bottom:max(10px,env(safe-area-inset-bottom))}
+.sheetcard h3{margin:0;font-size:19px}.sheetcard .hint{margin:0;font-size:12px;color:var(--muted)}
+.seg{display:flex;gap:8px}.seg button{flex:1}.seg button.on{background:var(--cyan);color:var(--ink);border-color:var(--cyan)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.two input{font-size:13px}
 @media(min-width:760px){.panel{width:380px;right:auto;top:14px;left:14px}.mode{right:14px;top:14px}.fabstack{right:14px;bottom:28px}}
 
 .mapnote,.mode{display:none}
@@ -120,6 +128,7 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
       <button id="clearBtn">✕ Cancel</button>
     </div>
     <button class="linkbtn" id="startToggle">From: my location ✎</button>
+    <label class="avoid"><input type="checkbox" id="avoidToll"> Avoid toll roads</label>
     <div class="sug" id="sug"></div>
     <div id="message" role="status">3D map loading… Search for a destination or use GPS.</div>
     <div id="routeInfo">
@@ -151,9 +160,19 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
   </div>
   <div class="navtop" id="navTop"><div class="ntarrow" id="ntArrow">↑</div><div class="ntmain"><b id="ntDist">—</b><span id="ntText"></span></div></div>
   <div class="navbot" id="navBot"><div class="nbstat"><b id="nbMin">—</b><small>Left</small></div><div class="nbstat"><b id="nbKm">—</b><small>km</small></div><div class="nbstat"><b id="nbClock">—</b><small>Arrive</small></div><button id="nbVoice" aria-label="Voice">🔇</button><button id="nbEdit" aria-label="Search or edit route">⌕</button><button class="primary" id="nbStop">■ Stop</button></div>
+  <div class="limit" id="limitSign" aria-label="Speed limit"></div>
   <div class="speedo" id="speedo" aria-label="Current speed"><b id="speedBig">0</b><small>km/h</small></div>
   <div class="mapnote">ROADX 3D • Building coverage varies by area • Drive safely</div>
 </main>
+<div class="sheet" id="carSheet"><div class="sheetcard">
+  <h3>Your vehicle</h3><p class="hint">Tell RoadX what you drive. This stays on this phone.</p>
+  <div class="seg"><button data-t="car" class="on">🚗 Car</button><button data-t="moto">🏍 Motorcycle</button></div>
+  <input id="carBrand" list="brands" placeholder="Brand (e.g. Perodua)" autocomplete="off">
+  <datalist id="brands"><option>Perodua</option><option>Proton</option><option>Toyota</option><option>Honda</option><option>Nissan</option><option>Mazda</option><option>Hyundai</option><option>Kia</option><option>Mitsubishi</option><option>Suzuki</option><option>Isuzu</option><option>Ford</option><option>Volkswagen</option><option>BMW</option><option>Mercedes-Benz</option><option>Audi</option><option>Volvo</option><option>Tesla</option><option>BYD</option><option>Chery</option><option>Yamaha</option><option>Modenas</option><option>Kawasaki</option><option>SYM</option><option>Benelli</option></datalist>
+  <input id="carModel" placeholder="Model (e.g. Myvi)" autocomplete="off">
+  <div class="two"><input id="carFuel" type="number" step="0.1" inputmode="decimal" placeholder="Fuel L/100 km (optional)"><input id="carPrice" type="number" step="0.01" inputmode="decimal" placeholder="Petrol RM/litre (optional)"></div>
+  <div class="actions"><button id="carSkip">Skip</button><button class="primary" id="carSave">Save</button></div>
+</div></div>
 </div>
 <script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
 <script>
@@ -305,7 +324,7 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
     if('speechSynthesis' in window) speechSynthesis.cancel();
   }
   const TOLL_RM_PER_KM=0.18,TOLL_MIN_RM=1; // rough Malaysia expressway rate; edit to taste
-  let walkSec=null,walkM=null,tripA=null;
+  let walkSec=null,walkM=null,tripA=null,avoidToll=false,noLimits=false;
   function tollInfo(r){
     let m=0,has=false;
     (r.legs||[]).forEach(l=>(l.steps||[]).forEach(st=>{const it=st.intersections||[];
@@ -331,6 +350,7 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
       '<div class="tr"><span>🏍 Motorcycle</span><span><b>≈ '+fmtTime(moto)+'</b><small>estimate</small></span></div>'+
       '<div class="tr"><span>🚶 Walk</span><span><b>'+fmtTime(walk)+'</b><small>'+fmtDist(walkKm)+'</small></span></div>'+
       '<div class="tr"><span>🚆 Train</span><span>'+(train?'<a href="'+train+'" target="_blank" rel="noopener">See train times ↗</a>':'—')+'</span></div>'+
+      (function(){const cv=car();if(!cv||!cv.lper||!cv.price)return'';const L=km/1000*cv.lper/100;return'<div class="tr"><span>⛽ Fuel'+(carName(cv)?' · '+escapeHtml(carName(cv)):'')+'</span><span><b>about RM '+(L*cv.price).toFixed(2)+'</b><small>'+L.toFixed(1)+' L</small></span></div>'})()+
       '<div class="tr"><span>💰 Toll</span><span><b>'+(t.has?'about RM '+rm.toFixed(2):'No toll roads')+'</b>'+(t.has?'<small>'+t.km.toFixed(1)+' km tolled</small>':'')+'</span></div>'+
       '<div class="note">Toll is a rough estimate (RM '+TOLL_RM_PER_KM.toFixed(2)+' per km on toll roads, car). Real price depends on the plaza. Motorcycle time is estimated from the car route. Train times open in Google Maps.</div>';
   }
@@ -338,6 +358,7 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
   function setCompact(on){panelEl.classList.toggle('compact',on);$('panelToggle').textContent=on?'⌕ Edit route or search':'▾ Hide panel'}
   function setSpeedo(k){$('speedBig').textContent=k;$('speedo').style.borderColor=k>110?'#e5484d':k>80?'#f5a524':'var(--cyan)'}
   const CAR='<svg viewBox="0 0 40 64" width="30" height="48" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="4" width="28" height="56" rx="12" style="fill:var(--car)" stroke="#fff" stroke-width="3"/><rect x="11" y="16" width="18" height="12" rx="4" fill="#07101d"/><rect x="11" y="38" width="18" height="10" rx="4" fill="#07101d"/><rect x="9" y="6" width="6" height="4" rx="2" fill="#fff6b0"/><rect x="25" y="6" width="6" height="4" rx="2" fill="#fff6b0"/></svg>';
+  const BIKE='<svg viewBox="0 0 40 64" width="26" height="48" xmlns="http://www.w3.org/2000/svg"><rect x="15" y="6" width="10" height="52" rx="5" style="fill:var(--car)" stroke="#fff" stroke-width="3"/><rect x="5" y="14" width="30" height="5" rx="2.5" fill="#fff"/><rect x="16.5" y="24" width="7" height="14" rx="3" fill="#07101d"/><circle cx="20" cy="9" r="3" fill="#fff6b0"/></svg>';
   const picked={};let sugTimer=null,sugInput=null,sugSeq=0;
   function hideSug(){$('sug').style.display='none'}
   function showSug(inp,items){
@@ -424,11 +445,21 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
     if(!re){$('routeBtn').disabled=true;setMessage('Searching places and calculating route…')}
     try{
       const [a,b]=re?[{lat:currentPosition.lat,lon:currentPosition.lon,name:'Your GPS location'},dest]:await Promise.all([getStart(),geocode(destText)]);
-      const url=`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=true&alternatives=3`;
-      const res=await fetch(url);
-      if(!res.ok) throw new Error('Routing service unavailable. Try again later.');
-      const json=await res.json();
-      if(json.code!=='Ok'||!json.routes?.length) throw new Error('No driving route found for those locations.');
+      const baseUrl=`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=true&alternatives=3`;
+      const ex=avoidToll?'&exclude=toll':'',tries=[];
+      if(!noLimits)tries.push(ex+'&annotations=maxspeed');
+      tries.push(ex);
+      if(avoidToll)tries.push('');
+      let json=null,used='',lastOk=true;
+      for(const extra of tries){
+        const res=await fetch(baseUrl+extra);lastOk=res.ok;
+        if(!res.ok)continue;
+        const j=await res.json();
+        if(j.code==='Ok'&&j.routes&&j.routes.length){json=j;used=extra;break}
+      }
+      if(!json)throw new Error(lastOk?'No driving route found for those locations.':'Routing service unavailable. Try again later.');
+      if(!used.includes('annotations'))noLimits=true;
+      const avoidFailed=avoidToll&&!used.includes('exclude');
       const wasNav=navActive;
       removeRoute();
       dest=b;alts=json.routes;selIdx=0;tripA=a;walkSec=null;walkM=null;
@@ -439,7 +470,7 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
       else{
         saveRecent(destText,b);
         map.fitBounds([[Math.min(a.lon,b.lon),Math.min(a.lat,b.lat)],[Math.max(a.lon,b.lon),Math.max(a.lat,b.lat)]],{padding:{top:250,bottom:90,left:35,right:35},maxZoom:16,duration:900});
-        setMessage('Route ready'+(alts.length>1?' · '+alts.length+' options, tap one to choose':'')+'. Time excludes live traffic.');
+        setMessage('Route ready'+(alts.length>1?' · '+alts.length+' options, tap one to choose':'')+'. Time excludes live traffic.'+(avoidFailed?' No toll-free route found.':''));
       }
     }catch(e){setMessage(e.message||'Could not calculate route. Check your connection.')}
     finally{$('routeBtn').disabled=false;rerouting=false}
@@ -492,14 +523,27 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
     const x=Math.sin(dl/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(dn/2)**2;
     return 6371000*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
   }
-  function offRoute(){
-    const pts=routeData.geometry.coordinates,k=111320,c=Math.cos(currentPosition.lat*Math.PI/180),px=currentPosition.lon*k*c,py=currentPosition.lat*k;let best=Infinity;
+  function nearest(){
+    const pts=routeData.geometry.coordinates,k=111320,c=Math.cos(currentPosition.lat*Math.PI/180),px=currentPosition.lon*k*c,py=currentPosition.lat*k;let best=Infinity,bi=0;
     for(let i=0;i<pts.length-1;i++){
       const ax=pts[i][0]*k*c,ay=pts[i][1]*k,dx=pts[i+1][0]*k*c-ax,dy=pts[i+1][1]*k-ay,L=dx*dx+dy*dy;
       let t=L?((px-ax)*dx+(py-ay)*dy)/L:0;t=Math.max(0,Math.min(1,t));
-      best=Math.min(best,Math.hypot(px-ax-t*dx,py-ay-t*dy));
+      const h=Math.hypot(px-ax-t*dx,py-ay-t*dy);if(h<best){best=h;bi=i}
     }
-    return best;
+    return{d:best,i:bi};
+  }
+  function offRoute(){return nearest().d}
+  let lastWarn=0;
+  function updateLimit(kmh){
+    const el=$('limitSign');el.style.display='none';
+    if(!navActive||!currentPosition||!routeData)return;
+    const lg=routeData.legs&&routeData.legs[0],ms=lg&&lg.annotation&&lg.annotation.maxspeed;
+    if(!ms||!ms.length)return;
+    const m=ms[Math.min(nearest().i,ms.length-1)];
+    if(!m||!m.speed)return;
+    const lim=m.unit==='mph'?Math.round(m.speed*1.609):m.speed;
+    el.textContent=lim;el.style.display='flex';
+    if(kmh>lim+5){$('speedo').style.borderColor='#e5484d';if(Date.now()-lastWarn>30000){lastWarn=Date.now();speak('Slow down. Speed limit '+lim)}}
   }
   function checkNavigation(){
     if(!navActive||!currentPosition||!routeData)return;
@@ -525,7 +569,7 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
       setGps(true);
       if(!gpsMarker){
         const el=document.createElement('div');
-        el.innerHTML=CAR;el.style.cssText='filter:drop-shadow(0 0 7px var(--glow))';
+        el.innerHTML=vehicleSvg();el.style.cssText='filter:drop-shadow(0 0 7px var(--glow))';
         gpsMarker=new maplibregl.Marker({element:el,rotationAlignment:'map',pitchAlignment:'map'}).setLngLat([currentPosition.lon,currentPosition.lat]).setPopup(new maplibregl.Popup().setText('Your GPS location')).addTo(map);
       }else gpsMarker.setLngLat([currentPosition.lon,currentPosition.lat]);
       map.flyTo({center:[currentPosition.lon,currentPosition.lat],zoom:16,pitch:tiltOn?58:0,duration:900});
@@ -533,7 +577,7 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
         currentPosition={lat:p.coords.latitude,lon:p.coords.longitude};
         setGps(true);if(gpsMarker)gpsMarker.setLngLat([currentPosition.lon,currentPosition.lat]);
         if(gpsMarker&&p.coords.speed>1&&typeof p.coords.heading==='number'&&p.coords.heading>=0)gpsMarker.setRotation(p.coords.heading);
-        const kmh=p.coords.speed>0?Math.round(p.coords.speed*3.6):0;$('speed').textContent=kmh;setSpeedo(kmh);
+        const kmh=p.coords.speed>0?Math.round(p.coords.speed*3.6):0;$('speed').textContent=kmh;setSpeedo(kmh);updateLimit(kmh);
         if(navActive){const o={center:[currentPosition.lon,currentPosition.lat],zoom:17,pitch:tiltOn?60:0,duration:900};if(p.coords.speed>1&&typeof p.coords.heading==='number'&&p.coords.heading>=0)o.bearing=p.coords.heading;map.easeTo(o)}
         checkNavigation();
       },()=>setGps(false),{enableHighAccuracy:true,maximumAge:3000,timeout:15000});
@@ -590,9 +634,29 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
   const HK='roadx_places';let settingPlace=null;
   function places(){try{return JSON.parse(localStorage.getItem(HK))||{}}catch(e){return{}}}
   function setPlace(k,v){try{const pl=places();pl[k]=v;localStorage.setItem(HK,JSON.stringify(pl))}catch(e){}renderDock()}
+  const CK='roadx_car',CSK='roadx_car_skip';let carType='car';
+  function car(){try{return JSON.parse(localStorage.getItem(CK))||null}catch(e){return null}}
+  function carName(c){return [c.brand,c.model].filter(Boolean).join(' ')}
+  function vehicleSvg(){const c=car();return c&&c.type==='moto'?BIKE:CAR}
+  function segSync(){document.querySelectorAll('#carSheet .seg button').forEach(b=>b.classList.toggle('on',b.dataset.t===carType))}
+  function openCar(){const c=car()||{};carType=c.type||'car';$('carBrand').value=c.brand||'';$('carModel').value=c.model||'';$('carFuel').value=c.lper||'';$('carPrice').value=c.price||'';segSync();$('carSheet').classList.add('on')}
+  document.querySelectorAll('#carSheet .seg button').forEach(b=>b.addEventListener('click',()=>{carType=b.dataset.t;segSync()}));
+  $('carSkip').addEventListener('click',()=>{try{localStorage.setItem(CSK,'1')}catch(e){}$('carSheet').classList.remove('on')});
+  $('carSave').addEventListener('click',()=>{
+    const c={type:carType,brand:$('carBrand').value.trim(),model:$('carModel').value.trim(),lper:parseFloat($('carFuel').value)||null,price:parseFloat($('carPrice').value)||null};
+    try{localStorage.setItem(CK,JSON.stringify(c))}catch(e){}
+    $('carSheet').classList.remove('on');
+    if(gpsMarker)gpsMarker.getElement().innerHTML=vehicleSvg();
+    renderDock();renderTrip();
+  });
+  $('avoidToll').addEventListener('change',()=>{
+    avoidToll=$('avoidToll').checked;try{localStorage.setItem('roadx_avoid',avoidToll?'1':'0')}catch(e){}
+    if(routeData&&$('destination').value.trim())findRoute();
+  });
   function renderDock(){
     const pl=places(),rc=recents().filter(r=>r.lat!=null).slice(0,2);
-    $('chips2').innerHTML='<button class="sc" data-k="home">🏠 '+(pl.home?'Home':'Set Home')+'</button><button class="sc" data-k="work">💼 '+(pl.work?'Work':'Set Work')+'</button>'+
+    const cv=car();
+    $('chips2').innerHTML='<button class="sc" data-car="1">'+(cv&&cv.type==='moto'?'🏍 ':'🚗 ')+escapeHtml(cv&&carName(cv)?carName(cv):'Add your car')+'</button><button class="sc" data-k="home">🏠 '+(pl.home?'Home':'Set Home')+'</button><button class="sc" data-k="work">💼 '+(pl.work?'Work':'Set Work')+'</button>'+
       rc.map((r,i)=>'<button class="sc" data-r="'+i+'">🕘 '+escapeHtml(r.t.split(',')[0])+'</button>').join('');
   }
   function openSearch(msg){
@@ -613,7 +677,7 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
   ch.addEventListener('contextmenu',e=>e.preventDefault());
   ch.addEventListener('click',e=>{
     const b=e.target.closest('button');if(!b||lpDone)return;
-    if(b.dataset.k)goPlace(b.dataset.k);
+    if(b.dataset.car)openCar();else if(b.dataset.k)goPlace(b.dataset.k);
     else{const r=recents().filter(x=>x.lat!=null)[+b.dataset.r];if(r)goTo(r.t,r.lat,r.lon)}
   });
   $('whereBtn').addEventListener('click',()=>openSearch());
@@ -629,7 +693,10 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
   }
   $('themeBtn').addEventListener('click',()=>{themeMode=themeMode==='auto'?'light':themeMode==='light'?'dark':'auto';try{localStorage.setItem(THEME_KEY,themeMode)}catch(e){}refreshTheme()});
   setInterval(refreshTheme,60000);
+  try{avoidToll=localStorage.getItem('roadx_avoid')==='1'}catch(e){}
+  $('avoidToll').checked=avoidToll;
   setGps(false);fillRecents();renderDock();refreshTheme();
+  setTimeout(()=>{let sk=null;try{sk=localStorage.getItem(CSK)}catch(e){}if(!car()&&!sk)openCar()},700);
   // Installable Android PWA: install prompt is shown only when the browser allows it.
   let installPrompt=null;
   const installBtn=$('installBtn');
