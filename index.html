@@ -95,6 +95,9 @@ body.navmode .limit{bottom:112px}body.home .limit{bottom:150px}
 .sheetcard h3{margin:0;font-size:19px}.sheetcard .hint{margin:0;font-size:12px;color:var(--muted)}
 .seg{display:flex;gap:8px}.seg button{flex:1}.seg button.on{background:var(--cyan);color:var(--ink);border-color:var(--cyan)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.two input{font-size:13px}
+select{width:100%;padding:12px;border-radius:12px;background:var(--field);color:var(--text);border:1px solid var(--fieldb);font:inherit}
+.sw{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.sw small{font-size:12px;color:var(--muted)}
+.sw button{width:34px;height:34px;padding:0;border-radius:50%;border:2px solid var(--btnb)}.sw button.on{outline:3px solid var(--cyan);outline-offset:2px}
 @media(min-width:760px){.panel{width:380px;right:auto;top:14px;left:14px}.mode{right:14px;top:14px}.fabstack{right:14px;bottom:28px}}
 
 .mapnote,.mode{display:none}
@@ -167,6 +170,8 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
 <div class="sheet" id="carSheet"><div class="sheetcard">
   <h3>Your vehicle</h3><p class="hint">Tell RoadX what you drive. This stays on this phone.</p>
   <div class="seg"><button data-t="car" class="on">🚗 Car</button><button data-t="moto">🏍 Motorcycle</button></div>
+  <select id="carBody" aria-label="Body type"></select>
+  <div class="sw" id="carSw" aria-label="Colour"></div>
   <input id="carBrand" list="brands" placeholder="Brand (e.g. Perodua)" autocomplete="off">
   <datalist id="brands"><option>Perodua</option><option>Proton</option><option>Toyota</option><option>Honda</option><option>Nissan</option><option>Mazda</option><option>Hyundai</option><option>Kia</option><option>Mitsubishi</option><option>Suzuki</option><option>Isuzu</option><option>Ford</option><option>Volkswagen</option><option>BMW</option><option>Mercedes-Benz</option><option>Audi</option><option>Volvo</option><option>Tesla</option><option>BYD</option><option>Chery</option><option>Yamaha</option><option>Modenas</option><option>Kawasaki</option><option>SYM</option><option>Benelli</option></datalist>
   <input id="carModel" placeholder="Model (e.g. Myvi)" autocomplete="off">
@@ -637,13 +642,46 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
   const CK='roadx_car',CSK='roadx_car_skip';let carType='car';
   function car(){try{return JSON.parse(localStorage.getItem(CK))||null}catch(e){return null}}
   function carName(c){return [c.brand,c.model].filter(Boolean).join(' ')}
-  function vehicleSvg(){const c=car();return c&&c.type==='moto'?BIKE:CAR}
-  function segSync(){document.querySelectorAll('#carSheet .seg button').forEach(b=>b.classList.toggle('on',b.dataset.t===carType))}
-  function openCar(){const c=car()||{};carType=c.type||'car';$('carBrand').value=c.brand||'';$('carModel').value=c.model||'';$('carFuel').value=c.lper||'';$('carPrice').value=c.price||'';segSync();$('carSheet').classList.add('on')}
-  document.querySelectorAll('#carSheet .seg button').forEach(b=>b.addEventListener('click',()=>{carType=b.dataset.t;segSync()}));
+  const BODIES={car:[['hatch','Hatchback'],['sedan','Sedan'],['suv','SUV'],['mpv','MPV'],['pickup','Pickup'],['van','Van']],moto:[['scooter','Scooter'],['bike','Motorcycle']]};
+  const COLORS=[null,'#e5484d','#1f2937','#f8fafc','#b6bfca','#f59e0b','#16a34a','#facc15','#2563eb'];
+  const GUESS=[['hilux','pickup'],['ranger','pickup'],['triton','pickup'],['d-max','pickup'],['dmax','pickup'],['navara','pickup'],['alphard','van'],['vellfire','van'],['hiace','van'],['nv200','van'],['serena','van'],['x-trail','suv'],['xtrail','suv'],['x50','suv'],['x70','suv'],['x90','suv'],['ativa','suv'],['hr-v','suv'],['hrv','suv'],['cr-v','suv'],['crv','suv'],['wr-v','suv'],['wrv','suv'],['cx-5','suv'],['cx5','suv'],['cross','suv'],['rush','suv'],['fortuner','suv'],['tucson','suv'],['kona','suv'],['seltos','suv'],['sportage','suv'],['atto','suv'],['model y','suv'],['aruz','mpv'],['alza','mpv'],['exora','mpv'],['ertiga','mpv'],['br-v','mpv'],['brv','mpv'],['innova','mpv'],['avanza','mpv'],['veloz','mpv'],['stargazer','mpv'],['carnival','mpv'],['freed','mpv'],['bezza','sedan'],['saga','sedan'],['persona','sedan'],['preve','sedan'],['s70','sedan'],['civic','sedan'],['city','sedan'],['accord','sedan'],['vios','sedan'],['camry','sedan'],['corolla','sedan'],['almera','sedan'],['sylphy','sedan'],['seal','sedan'],['model 3','sedan'],['myvi','hatch'],['axia','hatch'],['kenari','hatch'],['kelisa','hatch'],['viva','hatch'],['iriz','hatch'],['jazz','hatch'],['yaris','hatch'],['dolphin','hatch'],['nmax','scooter'],['pcx','scooter'],['vario','scooter'],['adv','scooter'],['aerox','scooter'],['xmax','scooter'],['scoopy','scooter'],['lexi','scooter'],['fazzio','scooter'],['filano','scooter'],['burgman','scooter']];
+  function guessBody(model,type){const m=(model||'').toLowerCase();for(const g of GUESS){if(m.includes(g[0])&&BODIES[type].some(b=>b[0]===g[1]))return g[1]}return type==='moto'?'bike':'hatch'}
+  function strokeFor(c){return c==='#f8fafc'||c==='#b6bfca'||c==='#facc15'?'#475569':'#fff'}
+  function vehicleSvg(){
+    const c=car()||{type:'car'},col=c.color||'var(--car)',st=strokeFor(c.color),b=c.body||guessBody(c.model,c.type||'car'),W='#07101d',L='#fff6b0';
+    const fill='style="fill:'+col+'" stroke="'+st+'" stroke-width="3"',win=(x,y,w,h,r)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(r||3)+'" fill="'+W+'"/>',lamp=(y,x1,x2)=>'<rect x="'+x1+'" y="'+y+'" width="6" height="3" rx="1.5" fill="'+L+'"/><rect x="'+x2+'" y="'+y+'" width="6" height="3" rx="1.5" fill="'+L+'"/>';
+    let inner,w=30;
+    if(c.type==='moto'){
+      w=28;
+      inner=b==='scooter'
+        ?'<rect x="15" y="6" width="10" height="52" rx="5" '+fill+'/><rect x="11" y="24" width="18" height="16" rx="7" '+fill+'/><rect x="5" y="12" width="30" height="5" rx="2.5" fill="#fff"/><rect x="16" y="40" width="8" height="12" rx="3" fill="'+W+'"/><circle cx="20" cy="9" r="3" fill="'+L+'"/>'
+        :'<rect x="16" y="3" width="8" height="58" rx="4" '+fill+'/><ellipse cx="20" cy="26" rx="8" ry="10" '+fill+'/><rect x="6" y="13" width="28" height="4" rx="2" fill="#fff"/><rect x="17" y="38" width="6" height="14" rx="3" fill="'+W+'"/><circle cx="20" cy="7" r="3" fill="'+L+'"/>';
+    }else if(b==='sedan')inner='<rect x="7" y="3" width="26" height="58" rx="12" '+fill+'/>'+win(11,17,18,11,4)+win(12,38,16,8,3)+lamp(5,10,24);
+    else if(b==='suv'){w=34;inner='<rect x="4" y="5" width="32" height="54" rx="10" '+fill+'/>'+win(10,16,20,11,4)+win(11,41,18,8,3)+'<rect x="8" y="29" width="3" height="10" rx="1.5" fill="'+W+'" opacity=".5"/><rect x="29" y="29" width="3" height="10" rx="1.5" fill="'+W+'" opacity=".5"/>'+lamp(7,8,26)}
+    else if(b==='mpv'){w=32;inner='<rect x="5" y="4" width="30" height="56" rx="11" '+fill+'/>'+win(10,15,20,10,4)+win(11,28,18,6,2)+win(11,40,18,9,3)+lamp(6,9,25)}
+    else if(b==='pickup'){inner='<rect x="6" y="3" width="28" height="58" rx="9" '+fill+'/>'+win(10,13,20,9,4)+win(12,25,16,5,2)+'<rect x="10" y="34" width="20" height="23" rx="3" fill="'+W+'" opacity=".55"/>'+lamp(5,9,25)}
+    else if(b==='van'){w=32;inner='<rect x="5" y="3" width="30" height="58" rx="7" '+fill+'/>'+win(10,11,20,10,3)+'<rect x="10" y="27" width="20" height="28" rx="3" fill="'+W+'" opacity=".25"/>'+lamp(5,9,25)}
+    else inner='<rect x="6" y="10" width="28" height="44" rx="13" '+fill+'/>'+win(11,19,18,10,4)+win(12,37,16,7,3)+lamp(12,10,24);
+    return '<svg viewBox="0 0 40 64" width="'+w+'" height="48" xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>';
+  }
+  const EMO={hatch:'🚗',sedan:'🚗',suv:'🚙',mpv:'🚐',pickup:'🛻',van:'🚐',scooter:'🛵',bike:'🏍'};
+  function bodyEmoji(c){return c?(EMO[c.body||guessBody(c.model,c.type||'car')]||'🚗'):'🚗'}
+  let carBody='hatch',carColor=null,bodyTouched=false;
+  function fillBodies(){
+    const sel=$('carBody');sel.innerHTML=BODIES[carType].map(b=>'<option value="'+b[0]+'">'+b[1]+'</option>').join('');
+    if(!BODIES[carType].some(b=>b[0]===carBody))carBody=guessBody($('carModel').value,carType);
+    sel.value=carBody;
+    $('carSw').innerHTML='<small>Colour</small>'+COLORS.map(x=>'<button type="button" data-c="'+(x||'')+'" class="'+((carColor||null)===x?'on':'')+'" style="background:'+(x||'var(--cyan)')+'" aria-label="'+(x||'Auto')+'"></button>').join('');
+  }
+  function segSync(){document.querySelectorAll('#carSheet .seg button').forEach(b=>b.classList.toggle('on',b.dataset.t===carType));fillBodies()}
+  function openCar(){const c=car()||{};carType=c.type||'car';carBody=c.body||guessBody(c.model,carType);carColor=c.color||null;bodyTouched=!!c.body;$('carBrand').value=c.brand||'';$('carModel').value=c.model||'';$('carFuel').value=c.lper||'';$('carPrice').value=c.price||'';segSync();$('carSheet').classList.add('on')}
+  document.querySelectorAll('#carSheet .seg button').forEach(b=>b.addEventListener('click',()=>{carType=b.dataset.t;bodyTouched=false;carBody=guessBody($('carModel').value,carType);segSync()}));
+  $('carBody').addEventListener('change',()=>{carBody=$('carBody').value;bodyTouched=true});
+  $('carSw').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;carColor=b.dataset.c||null;fillBodies()});
+  $('carModel').addEventListener('input',()=>{if(!bodyTouched){carBody=guessBody($('carModel').value,carType);$('carBody').value=carBody}});
   $('carSkip').addEventListener('click',()=>{try{localStorage.setItem(CSK,'1')}catch(e){}$('carSheet').classList.remove('on')});
   $('carSave').addEventListener('click',()=>{
-    const c={type:carType,brand:$('carBrand').value.trim(),model:$('carModel').value.trim(),lper:parseFloat($('carFuel').value)||null,price:parseFloat($('carPrice').value)||null};
+    const c={type:carType,body:$('carBody').value,color:carColor,brand:$('carBrand').value.trim(),model:$('carModel').value.trim(),lper:parseFloat($('carFuel').value)||null,price:parseFloat($('carPrice').value)||null};
     try{localStorage.setItem(CK,JSON.stringify(c))}catch(e){}
     $('carSheet').classList.remove('on');
     if(gpsMarker)gpsMarker.getElement().innerHTML=vehicleSvg();
@@ -656,7 +694,7 @@ button{border-radius:12px;font-weight:700}input{border-radius:12px;padding:13px 
   function renderDock(){
     const pl=places(),rc=recents().filter(r=>r.lat!=null).slice(0,2);
     const cv=car();
-    $('chips2').innerHTML='<button class="sc" data-car="1">'+(cv&&cv.type==='moto'?'🏍 ':'🚗 ')+escapeHtml(cv&&carName(cv)?carName(cv):'Add your car')+'</button><button class="sc" data-k="home">🏠 '+(pl.home?'Home':'Set Home')+'</button><button class="sc" data-k="work">💼 '+(pl.work?'Work':'Set Work')+'</button>'+
+    $('chips2').innerHTML='<button class="sc" data-car="1">'+bodyEmoji(cv)+' '+escapeHtml(cv&&carName(cv)?carName(cv):'Add your car')+'</button><button class="sc" data-k="home">🏠 '+(pl.home?'Home':'Set Home')+'</button><button class="sc" data-k="work">💼 '+(pl.work?'Work':'Set Work')+'</button>'+
       rc.map((r,i)=>'<button class="sc" data-r="'+i+'">🕘 '+escapeHtml(r.t.split(',')[0])+'</button>').join('');
   }
   function openSearch(msg){
